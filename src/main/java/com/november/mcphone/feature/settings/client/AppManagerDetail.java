@@ -421,11 +421,15 @@ public final class AppManagerDetail {
         }
 
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            MCphone.LOGGER.info("[MCphone] 绑键：收到鼠标左键，当作取消");
             capturingKey = false;
             pendingForce = null;
             return;
         }
 
+        // 收到的是几号键先记下来。侧键在有些鼠标的驱动里被映射成了键盘按键，
+        // 那种情况下这一行不会出现，而是走 captureKey——一眼就能分清是哪种
+        MCphone.LOGGER.info("[MCphone] 绑键：收到鼠标第 {} 号键", button);
         applyCapture(InputConstants.Type.MOUSE.getOrCreate(button));
     }
 
@@ -443,6 +447,8 @@ public final class AppManagerDetail {
 
         String owner = ownerOf(binding);
         if (owner != null) {
+            MCphone.LOGGER.info("[MCphone] 绑键：{} 已被「{}」占用，等再按一次确认",
+                    binding.serialize(), owner);
             pendingForce = binding;
             pendingOwner = owner;
             return;                 // 继续等：可以再按一次坚持，也可以换一个组合

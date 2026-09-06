@@ -78,6 +78,23 @@ public final class AppHotkeyHandler {
         if (event.getAction() != GLFW.GLFW_PRESS) return;
 
         Minecraft mc = Minecraft.getInstance();
+
+        // 【绑键界面正在等的话，这一下先归它。】
+        //
+        // 原版的按键设置是在 Screen.mouseClicked 里收鼠标键的，第一版照抄了那个做法。
+        // 但原版那个界面里只有它自己，而手机这一页的点击要穿过 PhoneScreen 的一整条
+        // 分发链（机身外判定、导航栏命中、各页分发……），中间任何一层把它吃掉，
+        // 表现出来都是"侧键按了没反应"，而且完全不报错。
+        //
+        // 这条路没有那些层：MouseHandler.onPress 一进门就发这个事件，比屏幕分发早
+        //     if (ClientHooks.onMouseButtonPre(...)) return;   ← 这里
+        //     ... 之后才轮到 screen.mouseClicked(...)
+        // 收下之后把事件取消掉，原版就不会再把这一下发给屏幕，两条路不会都响。
+        if (mc.screen instanceof PhoneScreen phone && phone.captureHotkeyMouse(event.getButton())) {
+            event.setCanceled(true);
+            return;
+        }
+
         if (mc.screen != null || mc.player == null || mc.level == null) return;
 
         InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(event.getButton());

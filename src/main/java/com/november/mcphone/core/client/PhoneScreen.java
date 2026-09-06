@@ -717,14 +717,26 @@ public final class PhoneScreen extends Screen {
             && ly >= ft && ly < ft + PhoneTheme.PHONE_TOTAL_HEIGHT;
     }
 
+    /**
+     * 绑键界面正等着的话，收下这一下鼠标键；没在等就返回 false，什么都不做。
+     *
+     * 公开是给 {@link AppHotkeyHandler} 用的：它听的是 MouseHandler 一进门就发的
+     * InputEvent.MouseButton.Pre，比 {@link #mouseClicked} 早得多，中间也不经过任何
+     * 分发。绑键这件事走那条路最靠得住——理由见那边的注释。
+     */
+    public boolean captureHotkeyMouse(int button) {
+        if (mode != Mode.APP_MANAGER_DETAIL || !appManagerDetail.isCapturingKey()) return false;
+        appManagerDetail.captureMouse(button);
+        return true;
+    }
+
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
-        // App 管理页正等着绑键：鼠标键也能绑（原版按键设置里也能），所以这一下要在
-        // 一切分发之前送过去——包括下面那句"非左键一律不管"，侧键正是从那儿漏掉的
-        if (mode == Mode.APP_MANAGER_DETAIL && appManagerDetail.isCapturingKey()) {
-            appManagerDetail.captureMouse(button);
-            return true;
-        }
+        // 绑键界面等着的话这一下归它。正常情况下轮不到这里——AppHotkeyHandler 在
+        // 更早的地方就收走并取消了事件；留着是兜底：万一哪个模组把那条事件截了，
+        // 屏幕这条路还在。两条都试过之后仍然绑不上，那就说明这一下压根没进游戏
+        if (captureHotkeyMouse(button)) return true;
+
         if (button != 0) return super.mouseClicked(mx, my, button);
 
         // 点在机身外＝收起手机，哪一页都一样。判定必须在分发之前：
