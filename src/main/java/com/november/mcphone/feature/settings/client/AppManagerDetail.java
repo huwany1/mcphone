@@ -42,7 +42,8 @@ import java.util.function.Supplier;
  * 是灰的，并写明为什么——不写的话玩家会以为是坏了。
  *
  * 快捷键这一行是【每个 App 各绑各的】，默认未指定：点一下开始等键，按哪个是哪个，
- * 按住 Ctrl / Shift / Alt 再按就是组合键，ESC 清除。撞了车不拦死——先说被谁占了，
+ * 键盘与鼠标键（含侧键）都行，按住 Ctrl / Shift / Alt 再按就是组合键，ESC 清除、
+ * 左键算了。撞了车不拦死——先说被谁占了，
  * 再按一次同一个组合就照绑。绑定表与"为什么不做成 KeyMapping"见
  * {@link com.november.mcphone.core.client.AppHotkeys}。
  *
@@ -361,7 +362,7 @@ public final class AppManagerDetail {
     }
 
     /**
-     * 收玩家按的那一下。
+     * 收玩家按的那一下键盘。鼠标那一下走 {@link #captureMouse}。
      *
      * ESC 是清除，与原版「按键设置」里的意思一致——那儿也是按 ESC 解绑，玩家不用
      * 学第二套。
@@ -401,6 +402,35 @@ public final class AppManagerDetail {
         if (KeyModifier.isKeyCodeModifier(key)) return;
         if (key.equals(InputConstants.UNKNOWN)) return;
 
+        applyCapture(key);
+    }
+
+    /**
+     * 等键时按下的鼠标键。原版的按键设置里鼠标键（含侧键）本来就能绑，这里没有理由
+     * 不能——第一版只接了键盘那条路，侧键就是从那儿漏掉的。
+     *
+     * 【左键除外，它是"算了"】：左键是在手机里点东西的那只手，绑给某个 App 的话，
+     * 玩家在世界里每次挖方块都会开一次手机；何况等键时总得留一个不用记的退路——
+     * 点一下走开就等于反悔，和这一页别处（卸载上膛后点别处即卸下）是同一条规矩。
+     * 其余的键（右键、中键、侧键 4/5……）照绑，撞了车照样是"再按一次强制"。
+     */
+    public void captureMouse(int button) {
+        if (app == null) {
+            capturingKey = false;
+            return;
+        }
+
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            capturingKey = false;
+            pendingForce = null;
+            return;
+        }
+
+        applyCapture(InputConstants.Type.MOUSE.getOrCreate(button));
+    }
+
+    /** 键盘与鼠标合流的地方：连着此刻按住的修饰键成一条绑定，撞车就上膛等确认 */
+    private void applyCapture(InputConstants.Key key) {
         AppHotkeys.Binding binding = AppHotkeys.Binding.of(key, AppHotkeys.activeModifiers());
 
         // 上膛的那个组合又按了一次＝他知道自己在做什么
@@ -415,7 +445,7 @@ public final class AppManagerDetail {
         if (owner != null) {
             pendingForce = binding;
             pendingOwner = owner;
-            return;                 // 继续等键：可以再按一次坚持，也可以换一个组合
+            return;                 // 继续等：可以再按一次坚持，也可以换一个组合
         }
 
         AppHotkeys.bind(app.getId(), binding);

@@ -719,6 +719,12 @@ public final class PhoneScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        // App 管理页正等着绑键：鼠标键也能绑（原版按键设置里也能），所以这一下要在
+        // 一切分发之前送过去——包括下面那句"非左键一律不管"，侧键正是从那儿漏掉的
+        if (mode == Mode.APP_MANAGER_DETAIL && appManagerDetail.isCapturingKey()) {
+            appManagerDetail.captureMouse(button);
+            return true;
+        }
         if (button != 0) return super.mouseClicked(mx, my, button);
 
         // 点在机身外＝收起手机，哪一页都一样。判定必须在分发之前：

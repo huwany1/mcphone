@@ -10,7 +10,8 @@ import net.neoforged.neoforge.client.settings.KeyModifier;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 按下某个 App 的快捷键 —— 开机，并且直接进那个 App。支持 Ctrl / Shift / Alt 的组合。
+ * 按下某个 App 的快捷键 —— 开机，并且直接进那个 App。键盘、鼠标键都行，支持
+ * Ctrl / Shift / Alt 的组合。
  *
  * 绑定表在 {@link AppHotkeys}，界面在「设置 → App 管理器 → 某个 App」。
  *
@@ -22,6 +23,12 @@ import org.lwjgl.glfw.GLFW;
  * 更短的一下就会整个丢掉——按得快正是快捷键的常态。所以听按下事件本身。
  *
  * 只认 GLFW_PRESS：REPEAT 是按住不放时系统补发的，那会变成一直重开手机。
+ *
+ * 键盘与鼠标为什么不是同一套收尾
+ *
+ * 鼠标那条事件（{@code MouseButton.Pre}）是【可取消】的，取消掉原版就完全不处理这一下，
+ * 于是绑在侧键上的 App 打开时不会顺带挥一下手。键盘那条（{@code InputEvent.Key}）不可
+ * 取消，只能等原版把点击排进队之后再把队倒空，见 {@link #drainConflicting}。
  *
  * 组合键要【完全一致】才算数：绑了 Ctrl+K 的人按 K 不会开，按 Ctrl+Shift+K 也不会。
  * 宽松匹配（"按住的修饰键含着绑定的那几个就算"）会让 Ctrl+K 顺带响应 Ctrl+Shift+K，
@@ -56,23 +63,50 @@ public final class AppHotkeyHandler {
         // 算成 Ctrl，那层换算在 KeyModifier 里，位掩码自己看不出来
         AppHotkeys.Binding pressed = AppHotkeys.Binding.of(key, AppHotkeys.activeModifiers());
 
+        if (!launch(mc, pressed)) return;
+
+        drainConflicting(pressed);
+    }
+
+    /**
+     * 鼠标键那条路。由 MCphoneClient 构造函数挂到游戏总线。
+     *
+     * 用 Pre 而不是 Post：它可以取消，取消掉原版就不再处理这一下——绑在侧键上的 App
+     * 打开时不会顺带挥一次手、放一次方块。键盘那条没有这个待遇。
+     */
+    public static void onMouseInput(InputEvent.MouseButton.Pre event) {
+        if (event.getAction() != GLFW.GLFW_PRESS) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.screen != null || mc.player == null || mc.level == null) return;
+
+        InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(event.getButton());
+        AppHotkeys.Binding pressed = AppHotkeys.Binding.of(key, AppHotkeys.activeModifiers());
+
+        if (!launch(mc, pressed)) return;
+
+        // 原版这一下整个不处理了，自然也没有点击排进队，不必再倒
+        event.setCanceled(true);
+    }
+
+    /** 真的开机并进 App 了才 true */
+    private static boolean launch(Minecraft mc, AppHotkeys.Binding pressed) {
         ResourceLocation appId = AppHotkeys.appFor(pressed);
-        if (appId == null) return;
+        if (appId == null) return false;
 
         // 卸载了就当没绑：绑定按机器存、安装状态按存档存，同一台电脑换个存档
         // 完全可能没装这个 App。此时什么都不做，也不提示——按错键是很常见的事，
         // 为此弹一句话反而聒噪（开机键那边同一条规矩）
-        if (!PhoneScreenRegistry.isInstalled(appId)) return;
+        if (!PhoneScreenRegistry.isInstalled(appId)) return false;
 
         IPhoneApp app = PhoneScreenRegistry.getApp(appId);
-        if (app == null) return;    // 目录里没有＝前置模组这局没装，不可用
+        if (app == null) return false;    // 目录里没有＝前置模组这局没装，不可用
 
         // 身上没有手机就开不了机，那就更谈不上进 App
-        if (!PhoneScreenOpener.open(mc.player)) return;
+        if (!PhoneScreenOpener.open(mc.player)) return false;
 
         if (mc.screen instanceof PhoneScreen phone) phone.launchApp(app);
-
-        drainConflicting(pressed);
+        return true;
     }
 
     /**

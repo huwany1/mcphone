@@ -58,8 +58,10 @@ public class MCphoneClient {
 
         NeoForge.EVENT_BUS.addListener(PhoneKeyHandler::onClientTick);
 
-        // 每个 App 自己的快捷键。它不是 KeyMapping，只能听按下事件，理由见 AppHotkeys
+        // 每个 App 自己的快捷键。它不是 KeyMapping，只能听按下事件，理由见 AppHotkeys。
+        // 鼠标键单独一条：那类事件与键盘的不是同一个类，而且它可以取消
         NeoForge.EVENT_BUS.addListener(AppHotkeyHandler::onKeyInput);
+        NeoForge.EVENT_BUS.addListener(AppHotkeyHandler::onMouseInput);
 
         // 每 tick 泵一次音频流；没在放的时候第一行就返回
         NeoForge.EVENT_BUS.addListener(LocalPlayback::onClientTick);
