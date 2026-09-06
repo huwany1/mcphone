@@ -17,6 +17,9 @@ import java.util.List;
  *
  * 渲染被嵌入到 PhoneScreen 的屏幕区域中。
  * 每张壁纸按比例缩放为缩略图展示。
+ *
+ * 网格按行滚（1.9.1 补的）。在那之前一屏只画得下两行四张，第五张起就是永远看不见 ——
+ * 而这个目录是玩家自己往里丢文件的地方，丢满是迟早的事。见 {@link #scrollRow}。
  */
 public final class WallpaperPicker {
 
@@ -35,6 +38,18 @@ public final class WallpaperPicker {
     private static final int HIT_PAD = 2;
 
     private int hoveredIdx = -1;     // -3 = "打开文件夹", -2 = "恢复默认", -1 = 无hover, 0..N = 壁纸索引
+
+    /**
+     * 网格从第几【行】开始画。
+     *
+     * 这一页原来没有滚动，也没有翻页：一屏两列两行，第五张之后的壁纸就是永远看不见。
+     * 而壁纸目录是玩家自己往里丢文件的地方，丢第五张进去是迟早的事——他会以为
+     * 那张图没被认出来，转头去报"壁纸加载不出来"。
+     */
+    private int scrollRow;
+
+    /** 上一帧算出来的滚动上限，给 mouseScrolled 夹用 —— 一屏放得下几行只有渲染时才知道 */
+    private int maxScrollRow;
 
     /**
      * 点过「打开文件夹」之后开始盯着目录，每秒重扫一次。
@@ -59,6 +74,7 @@ public final class WallpaperPicker {
         hoveredIdx = -1;
         watchingFolder = false;
         lastScanMs = 0L;
+        scrollRow = 0;
     }
 
     //  渲染
@@ -86,9 +102,9 @@ public final class WallpaperPicker {
 
         // ---- 标题行：左边标题，右边「打开文件夹」----
         //
-        // 挂在标题行而不是自己占一行：这一页的网格【没有翻页】，放不下的壁纸就是永远
-        // 看不见。多占一行正好把网格从两行挤成一行，能选的壁纸从四张掉到两张——
-        // 为了一个快捷键把这一页的主功能砍掉一半，不划算。
+        // 挂在标题行而不是自己占一行：多占一行正好把网格从两行挤成一行，一屏能看到的
+        // 壁纸从四张掉到两张。1.9.1 给网格补上滚轮之后这不再是"看不见"，但每滚一下
+        // 只换两张仍然难挑——为了一个快捷键把主功能的密度砍掉一半，不划算。
         //
         // 挤不下时截的是标题：玩家正是点着「更换壁纸」那一行进来的，标题只是复述一遍；
         // 而这个键是这一页唯一的新功能。中文两样都放得下，英文的标题会被截一截。
@@ -137,14 +153,26 @@ public final class WallpaperPicker {
         }
 
         // ---- 壁纸缩略图网格 ----
+        //
+        // 一格占 cellH，最后一行不需要底下那点行距，所以判可见性用 cellNeed
+        final int cellNeed = THUMB_H + font.lineHeight + 2;
+        final int cellH = THUMB_H + font.lineHeight + 4 + 2;
+
+        final int availH = contentBottom - contentY;
+        final int visibleRows = availH < cellNeed ? 1 : (availH - cellNeed) / cellH + 1;
+        final int totalRows = (wallpapers.size() + COLS - 1) / COLS;
+        // 删掉几张图之后行数会变少，不夹一下就会停在空白处
+        maxScrollRow = Math.max(0, totalRows - visibleRows);
+        scrollRow = Math.clamp(scrollRow, 0, maxScrollRow);
+
         int x = contentX;
         int y = contentY;
         int col = 0;
 
-        for (int i = 0; i < wallpapers.size(); i++) {
+        for (int i = scrollRow * COLS; i < wallpapers.size(); i++) {
             WallpaperStore.WallpaperEntry wp = wallpapers.get(i);
 
-            if (y + THUMB_H + font.lineHeight + 2 > contentBottom) break;
+            if (y + cellNeed > contentBottom) break;
 
             // hover 高亮
             if (GuiUtil.hit(mouseX, mouseY, x, y, THUMB_W, THUMB_H + font.lineHeight + 2)) {
@@ -205,6 +233,19 @@ public final class WallpaperPicker {
     }
 
     //  点击
+
+    /** 滚轮翻网格，一次一行。到头了返回 false */
+    public boolean mouseScrolled(double scrollY) {
+        if (scrollY > 0 && scrollRow > 0) {
+            scrollRow--;
+            return true;
+        }
+        if (scrollY < 0 && scrollRow < maxScrollRow) {
+            scrollRow++;
+            return true;
+        }
+        return false;
+    }
 
     /**
      * 返回 true 表示选择了壁纸（界面应返回设置列表），false 表示点击在空白处。

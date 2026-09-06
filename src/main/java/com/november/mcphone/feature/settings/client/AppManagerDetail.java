@@ -57,11 +57,25 @@ public final class AppManagerDetail {
     /** 卸载完了，请求退回列表页，等 PhoneScreen 来取 */
     private boolean backRequest;
 
+    /**
+     * 正文往上滚了多少像素。
+     *
+     * 描述是附属自己写的，长度不由我们定；再加上前置与联动各占一行，正文放不下是常态。
+     * 原来放不下就直接不画（{@code drawInfoLine} 里那句提前 return），玩家看不到自己
+     * 缺哪个前置 —— 而那正是他点进这一页要找的答案。
+     */
+    private int scrollPx;
+
+    /** 上一帧量出来的滚动上限，正文有多高只有画完才知道 */
+    private int maxScroll;
+
     public void open(IPhoneApp target) {
         this.app = target;
         this.uninstallArmed = false;
         this.btnHovered = false;
         this.backRequest = false;
+        this.scrollPx = 0;
+        this.maxScroll = 0;
     }
 
     public void close() {
@@ -116,45 +130,58 @@ public final class AppManagerDetail {
         //  正文：描述 + 由谁提供 + 前置/联动 
         // 操作区的位置先扣出来，正文只能画到它上面为止
         final int bodyBottom = bottom - BUTTON_H - font.lineHeight - 8;
+        final int bodyTop = y;
+
+        scrollPx = Math.clamp(scrollPx, 0, maxScroll);
+        y -= scrollPx;
+
+        // 越界的部分交给 scissor 裁，不再"放不下就不画"——那样卸载键上方会凭空少几行
+        g.enableScissor(x, bodyTop, x + w, bodyBottom);
 
         String desc = safe(app::getDescription, "");
         if (desc.isBlank()) desc = Component.translatable("mcphone.store.no_description").getString();
         for (var line : font.split(Component.literal(desc), w)) {
-            if (y + font.lineHeight > bodyBottom) break;
             g.drawString(font, line, x, y, FontPalette.body(), false);
             y += font.lineHeight + 1;
         }
 
         y += 3;
-        y = drawInfoLine(g, font, x, y, w, bodyBottom,
+        y = drawInfoLine(g, font, x, y, w,
                 Component.translatable("mcphone.gui.app_provider").getString(), providerName());
 
         for (RequiredMod required : PhoneScreenRegistry.requiredModsOf(app)) {
-            y = drawModLine(g, font, x, y, w, bodyBottom, "mcphone.gui.app_requires", required);
+            y = drawModLine(g, font, x, y, w, "mcphone.gui.app_requires", required);
         }
         for (RequiredMod companion : PhoneScreenRegistry.companionModsOf(app)) {
-            y = drawModLine(g, font, x, y, w, bodyBottom, "mcphone.gui.app_companion", companion);
+            y = drawModLine(g, font, x, y, w, "mcphone.gui.app_companion", companion);
         }
+
+        g.disableScissor();
+
+        maxScroll = Math.max(0, (y + scrollPx) - bodyBottom);
 
         //  操作区：这一版只有卸载 
         renderUninstallButton(g, font, x, bottom, w, mouseX, mouseY);
     }
 
-    /** 「标签：值」一行。放不下就不画——这一页的信息都是可选的，挤掉按钮才是错 */
-    private static int drawInfoLine(GuiGraphics g, Font font, int x, int y, int w, int bottom,
-                                    String label, String value) {
-        if (y + font.lineHeight > bottom) return y;
+    /** 滚轮翻正文。头部与卸载键不跟着滚：那个键得一直够得着 */
+    public boolean mouseScrolled(double scrollY, Font font) {
+        int before = scrollPx;
+        scrollPx = Math.clamp(scrollPx - (int) (scrollY * font.lineHeight * 3), 0, maxScroll);
+        return scrollPx != before;
+    }
 
+    /** 「标签：值」一行。越界由调用方的 scissor 裁，这里只管画 */
+    private static int drawInfoLine(GuiGraphics g, Font font, int x, int y, int w,
+                                    String label, String value) {
         g.drawString(font, GuiUtil.truncate(font, label + " " + value, w), x, y,
                 FontPalette.subtle(), false);
         return y + font.lineHeight + 1;
     }
 
     /** 前置 / 联动那几行：模组名 + 装没装 */
-    private static int drawModLine(GuiGraphics g, Font font, int x, int y, int w, int bottom,
+    private static int drawModLine(GuiGraphics g, Font font, int x, int y, int w,
                                    String labelKey, RequiredMod mod) {
-        if (y + font.lineHeight > bottom) return y;
-
         boolean loaded = ModList.get().isLoaded(mod.modId());
         String label = Component.translatable(labelKey).getString() + " " + mod.displayName();
         String mark = Component.translatable(loaded

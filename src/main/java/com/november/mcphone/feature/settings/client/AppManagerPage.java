@@ -49,11 +49,18 @@ public final class AppManagerPage {
     /** 玩家点中的那个 App，等 PhoneScreen 来取 */
     private IPhoneApp selected;
 
+    /** 从第几个 App 开始画。屏幕只放得下八行，装了几个联动模组就不止八个 App */
+    private int scrollOffset;
+
+    /** 上一帧算出来的滚动上限，给 mouseScrolled 夹用 —— 可见行数只有渲染时才知道 */
+    private int maxScrollOffset;
+
     /** 进入这一页 */
     public void open() {
         refresh();
         hovered = -1;
         selected = null;
+        scrollOffset = 0;
     }
 
     /** 点中的那一个，取走就清空。没点就是 null */
@@ -99,8 +106,16 @@ public final class AppManagerPage {
         final String systemTag = Component.translatable("mcphone.gui.system_app").getString();
         final int rowH = Math.max(ICON, font.lineHeight) + 4;
 
+        // 最后一行底下不需要那 2 像素行距，所以按"第一行占 rowH、其余每行占 rowH+2"算，
+        // 直接除会少算一行，滚到底时底下会露出一条空白
+        final int availH = bottom - y;
+        final int visible = availH < rowH ? 1 : (availH - rowH) / (rowH + 2) + 1;
+        // 卸载会让列表变短，不夹一下就会停在空白处
+        maxScrollOffset = Math.max(0, apps.size() - visible);
+        scrollOffset = Math.clamp(scrollOffset, 0, maxScrollOffset);
+
         hovered = -1;
-        for (int i = 0; i < apps.size(); i++) {
+        for (int i = scrollOffset; i < apps.size(); i++) {
             if (y + rowH > bottom) break;
 
             final IPhoneApp app = apps.get(i);
@@ -125,6 +140,19 @@ public final class AppManagerPage {
 
             y += rowH + 2;
         }
+    }
+
+    /** 滚轮翻列表。到头了返回 false，让上层去做它的事 */
+    public boolean mouseScrolled(double scrollY) {
+        if (scrollY > 0 && scrollOffset > 0) {
+            scrollOffset--;
+            return true;
+        }
+        if (scrollY < 0 && scrollOffset < maxScrollOffset) {
+            scrollOffset++;
+            return true;
+        }
+        return false;
     }
 
     /** 点一行＝选中它，交给 PhoneScreen 去开详情页 */

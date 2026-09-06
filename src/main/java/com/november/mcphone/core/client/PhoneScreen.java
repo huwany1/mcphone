@@ -64,6 +64,9 @@ public final class PhoneScreen extends Screen {
 
     private final AppManagerDetail appManagerDetail = new AppManagerDetail();
 
+    /** 1.9.1 起有滚动状态，不再是纯静态的一页 */
+    private final AboutPage aboutPage = new AboutPage();
+
     /** 在 App 管理器里点中、正要进详情页的那一个 */
     private IPhoneApp pendingManagedApp;
 
@@ -183,6 +186,8 @@ public final class PhoneScreen extends Screen {
         if (this.mode == Mode.NOTE_EDIT) noteEditor.close();
 
         if (this.mode == Mode.FONT_COLOR_PICKER) fontColorPicker.close();
+
+        if (target == Mode.ABOUT) aboutPage.open();
 
         // 时钟的"时间停没停"是跨帧累计的判断，离开时清掉
         if (this.mode == Mode.CLOCK) ClockPage.reset();
@@ -562,7 +567,7 @@ public final class PhoneScreen extends Screen {
                     PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
                     PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT,
                     mouseX, mouseY, font);
-            case ABOUT             -> AboutPage.render(g, phoneLeft, phoneTop,
+            case ABOUT             -> aboutPage.render(g, phoneLeft, phoneTop,
                     PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
                     PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT, font);
             case GALLERY           -> gallery.render(g, phoneLeft, phoneTop,
@@ -926,6 +931,11 @@ public final class PhoneScreen extends Screen {
         if (mode == Mode.READER && bookList.mouseScrolled(scrollY)) return true;
         if (mode == Mode.MUSIC_PLAYER && musicPage.mouseScrolled(scrollY, my)) return true;
         if (mode == Mode.NOTE_EDIT && noteEditor.mouseScrolled(mx, my, scrollX, scrollY)) return true;
+        // 设置那几页：1.9.1 之前一页都滚不动，内容超出一屏就再也看不到
+        if (mode == Mode.WALLPAPER_PICKER && wallpaperPicker.mouseScrolled(scrollY)) return true;
+        if (mode == Mode.APP_MANAGER && appManagerPage.mouseScrolled(scrollY)) return true;
+        if (mode == Mode.APP_MANAGER_DETAIL && appManagerDetail.mouseScrolled(scrollY, font)) return true;
+        if (mode == Mode.ABOUT && aboutPage.mouseScrolled(scrollY, font)) return true;
         if (mode == Mode.ADDON_PAGE
                 && callPage(p -> p.mouseScrolled(mx, my, scrollY))) return true;
         return super.mouseScrolled(mx, my, scrollX, scrollY);
