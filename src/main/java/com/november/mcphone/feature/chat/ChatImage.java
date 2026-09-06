@@ -1,5 +1,7 @@
 package com.november.mcphone.feature.chat;
 
+import com.november.mcphone.core.ServerConfig;
+
 /**
  * 图片消息的几个硬上限。客户端压图、服务端收图、存档清理三边共用这一份，
  * 改一个数不必去别处找配套的另一个。
@@ -28,29 +30,53 @@ public final class ChatImage {
     private ChatImage() {}
 
     /** 存下来的图片长边上限（像素），客户端在发送前就压到这个尺寸 */
-    public static final int MAX_SIDE = 384;
+    public static final int MAX_SIDE = 512;
 
     /**
-     * 一张图的字节上限。压过之后仍超出的，客户端会再降一档尺寸重压。
+     * 一张图的字节上限，由服主定（{@code chatImageMaxKb}，默认 512 KB）。
+     * 压过之后仍超出的，客户端会再降一档尺寸重压。
      *
-     * 128 KB 是照着实测定的：Minecraft 的截图大片是天空、地形这类平面，384 长边压出来
-     * 常常只有几 KB；难压的是雨天、树叶、粒子、光影那种满屏噪点的画面，实测纯随机噪点
-     * 384 要 177 KB——那种图会自动降到 320（122 KB）装进来。也就是说这个数卡的是最坏情况，
-     * 正常截图离它很远。
+     * 为什么是服主定的
+     *
+     * 这个数直接换成硬盘：每对会话最多留 20 张，所以每对好友的上限就是它乘以 20。
+     * 一台十个人的私服和一台两百人的公服，愿意为聊天记录付的硬盘差着两个数量级，
+     * 而这件事只有服主知道。客户端压到多小，也就该由他说了算。
+     *
+     * 客户端读到的是【服主那一份】：服务端配置会在连上来时同步过来，见 ServerConfig。
+     *
+     * 实际用量离上限很远：Minecraft 的截图大片是天空、地形这类平面，压出来常常只有几 KB。
+     * 这个数卡的是最坏情况——满屏噪点的截图（雨天、树叶、粒子、光影），以及动图，
+     * 因为动图的"一张图"是所有帧拼成的那一张。
      */
-    public static final int MAX_BYTES = 128 * 1024;
+    public static int maxBytes() {
+        return ServerConfig.chatImageMaxBytes();
+    }
+
+    /**
+     * 上限的上限，编译期定死：网络包的容量、缓冲区的大小按它开。
+     *
+     * 为什么要有这么一个数：包的编解码器是静态的，不能跟着配置变——服主把上限调大之后，
+     * 编解码器还按旧值拦，图就永远发不出去了。所以那些地方一律按【配置能取到的最大值】开，
+     * 真正的判定留给运行时的 {@link #maxBytes()}。
+     *
+     * 768 KB 这个数来自原版：服务端发给客户端的自定义包上限是 1 MB
+     * （ClientboundCustomPayloadPacket），一张图是一个包发下去的，得给包头留出余量。
+     */
+    public static final int MAX_BYTES_CEILING = 768 * 1024;
 
     /** 上传切片大小。32767 的硬上限之外还要留出包头与 UUID 等字段的余量，取 16 KB 稳妥 */
     public static final int CHUNK_BYTES = 16 * 1024;
 
-    /** 一次上传最多几片。按上限算是 8 片，多给一片的余量；超过即判定为伪造包 */
-    public static final int MAX_CHUNKS = MAX_BYTES / CHUNK_BYTES + 1;
+    /** 一次上传最多几片。按当前上限算，多给一片的余量；超过就不是正常客户端发的 */
+    public static int maxChunks() {
+        return maxBytes() / CHUNK_BYTES + 1;
+    }
 
     /**
      * 每对会话最多留几张图的像素。
      *
      * 消息本身留 100 条（{@link ChatData#MAX_MESSAGES_PER_CONVERSATION}），但图不能照这个数留：
-     * 100 张 × 128 KB × 每人上百个好友，硬盘是服主的。超出之后【只删像素、不删消息】——
+     * 100 张 × 每张几百 KB × 每人上百个好友，硬盘是服主的。超出之后【只删像素、不删消息】——
      * 那条消息还在，显示成「图片已过期」。删掉整条的话，聊天记录会凭空少几行，
      * 而玩家不会知道少的是什么。
      */
@@ -90,11 +116,11 @@ public final class ChatImage {
     /**
      * 雪碧图的长边上限。
      *
-     * 卡的是显存：一张 768×768 的贴图解出来是 2.25 MB，而客户端要同时留着好几张
-     * （见 ChatImageCache）。再大一格的收益也很有限——帧本身最宽才 160，
-     * 而气泡里显示出来只有 80。
+     * 卡的是显存：一张 1024×1024 的贴图解出来是 4 MB，而客户端要同时留着好几张
+     * （见 ChatImageCache 的字节预算）。这个数与帧的尺寸是一起动的——雪碧图的长边是
+     * "一行几帧 × 一帧多宽"，所以帧数多的时候一帧就自动小（见 ChatImageSender.frameSide）。
      */
-    public static final int SHEET_MAX_SIDE = 768;
+    public static final int SHEET_MAX_SIDE = 1024;
 
     /**
      * 雪碧图一行摆几帧。

@@ -2,6 +2,7 @@ package com.november.mcphone.feature.chat.client;
 
 import com.november.mcphone.core.client.ImageCodec;
 import com.november.mcphone.feature.chat.ChatImage;
+import com.november.mcphone.feature.chat.ChatImageStore;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -38,7 +39,8 @@ import java.util.Random;
  *   2. 截图不能白留一个 alpha 通道，这条路上每个字节都要过网络；
  *   3. 压不进上限的自动降档，最后一定 ≤ MAX_BYTES、长边 ≤ MAX_SIDE；
  *   4. 同一个文件第二次发直接拿缓存，文件被换掉之后缓存要失效；
- *   5. 动图拆帧之后，第几帧就摆在第几格——发件人怎么摆，收件人就怎么取，差一列满屏错位。
+ *   5. 动图拆帧之后，第几帧就摆在第几格——发件人怎么摆，收件人就怎么取，差一列满屏错位；
+ *   6. 压出来的东西服务端收得下（ChatImageStore.looksLikePng）——两边各有一套上限，对不上就发不出去。
  *
  * 测不了的：所有会写日志的失败路径。MCphone.LOGGER 一碰就要初始化模组主类，而那要 FML。
  */
@@ -88,11 +90,14 @@ public class ImageEncodeTest {
             ImageCodec.Encoded e = encodeWithinLimit(p);
             check(e != null, p.getFileName() + " 应当压得进上限");
             if (e != null) {
-                check(e.png().length <= ChatImage.MAX_BYTES,
-                        p.getFileName() + " 压完 " + e.png().length + " 字节，超过上限 " + ChatImage.MAX_BYTES);
+                check(e.png().length <= ChatImage.maxBytes(),
+                        p.getFileName() + " 压完 " + e.png().length + " 字节，超过上限 " + ChatImage.maxBytes());
                 check(Math.max(e.width(), e.height()) <= ChatImage.MAX_SIDE,
                         p.getFileName() + " 长边 " + Math.max(e.width(), e.height()) + " 超过 " + ChatImage.MAX_SIDE);
                 check(e.width() > 0 && e.height() > 0, p.getFileName() + " 尺寸不该是 0");
+                // 客户端压出来的，服务端必须认——两边各有一套上限，对不上就是发不出去
+                check(ChatImageStore.looksLikePng(e.png()),
+                        p.getFileName() + " 服务端不认这张图（looksLikePng 退回）");
             }
         }
 
@@ -120,7 +125,11 @@ public class ImageEncodeTest {
         if (anim != null) {
             check(anim.frames() == gifFrames, "帧数应当是 " + gifFrames + "，实际 " + anim.frames());
             check(anim.frameMs() == 80, "每帧延迟应当是 80ms，实际 " + anim.frameMs());
-            check(anim.png().length <= ChatImage.MAX_BYTES, "雪碧图不能超过上限");
+            check(anim.png().length <= ChatImage.maxBytes(), "雪碧图不能超过上限");
+            // 这一条守的是"客户端拼的雪碧图，服务端收不收"：它按整张 PNG 的尺寸判，
+            // 而雪碧图比一帧大好几倍——按一帧的上限判的话，动图会被当成坏图退回
+            check(ChatImageStore.looksLikePng(anim.png()),
+                    "服务端必须认这张雪碧图（looksLikePng 退回了）");
 
             BufferedImage sheet = ImageIO.read(new ByteArrayInputStream(anim.png()));
             int cols = ChatImage.cols(anim.frames());
@@ -153,6 +162,26 @@ public class ImageEncodeTest {
                                 frameColor(0)),
                         "裁出来的应当是第一帧");
             }
+        }
+
+        //  6b. 雪碧图【比一帧大好几倍】的那种：服务端按整张 PNG 的尺寸判，必须按雪碧图的
+        //      上限判而不是按一帧的。用一张够大的动图逼出这个情况——上面那张 64px 的太小，
+        //      拼出来还没超过一帧的上限，根本走不到这条路上
+
+        Path bigGif = dir.resolve("big.gif");
+        writeGif(bigGif, 240, 16, 80);
+        ImageCodec.Encoded big = encodeWithinLimit(bigGif);
+        check(big != null, "大一点的动图也该发得出去");
+        if (big != null) {
+            BufferedImage sheet = ImageIO.read(new ByteArrayInputStream(big.png()));
+            int longSide = Math.max(sheet.getWidth(), sheet.getHeight());
+            check(longSide > ChatImage.MAX_SIDE,
+                    "这一条要的就是雪碧图超过一帧的上限，实际长边 " + longSide
+                            + "，一帧上限 " + ChatImage.MAX_SIDE + "——不超就没测到东西");
+            check(longSide <= ChatImage.SHEET_MAX_SIDE,
+                    "雪碧图长边 " + longSide + " 超过 " + ChatImage.SHEET_MAX_SIDE);
+            check(ChatImageStore.looksLikePng(big.png()),
+                    "服务端必须认这张比一帧大好几倍的雪碧图");
         }
 
         //  7. 帧太多的自动抽稀，延迟跟着乘上去——不然会播成快进
@@ -199,9 +228,9 @@ public class ImageEncodeTest {
 
     /** ChatImageSender.encodeWithinLimit 是私有的：它是实现细节，但正是要守的那一段 */
     static ImageCodec.Encoded encodeWithinLimit(Path photo) throws Exception {
-        Method m = ChatImageSender.class.getDeclaredMethod("encodeWithinLimit", Path.class);
+        Method m = ChatImageSender.class.getDeclaredMethod("encodeWithinLimit", Path.class, int.class);
         m.setAccessible(true);
-        return (ImageCodec.Encoded) m.invoke(null, photo);
+        return (ImageCodec.Encoded) m.invoke(null, photo, ChatImage.maxBytes());
     }
 
     static void write(Path path, BufferedImage image) throws IOException {

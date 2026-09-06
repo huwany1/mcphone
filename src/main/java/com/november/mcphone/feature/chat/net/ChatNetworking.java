@@ -1,5 +1,6 @@
 package com.november.mcphone.feature.chat.net;
 
+import com.november.mcphone.feature.chat.ChatImage;
 import com.november.mcphone.feature.chat.ChatImageStore;
 import com.november.mcphone.feature.chat.ConversationKey;
 import com.november.mcphone.feature.chat.ChatImageUploads;
@@ -199,6 +200,12 @@ public final class ChatNetworking {
                 }
                 if (!RequestThrottle.allow(sender, RequestThrottle.Kind.CHAT_IMAGE)) {
                     tell(sender, ImageOutcome.TOO_FAST);
+                    return;
+                }
+                // 片数一眼就能看出这张图有多大。拦在这里而不是等它拼完：拼完再拒等于白收
+                // 几百 KB，而且 ChatImageUploads 那边只会静默丢掉，玩家看到的是点了没反应
+                if (packet.chunkCount() > ChatImage.maxChunks()) {
+                    tell(sender, ImageOutcome.TOO_BIG);
                     return;
                 }
             }

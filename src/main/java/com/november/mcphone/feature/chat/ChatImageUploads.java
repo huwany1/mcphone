@@ -61,7 +61,7 @@ public final class ChatImageUploads {
             this.frames = frames;
             this.frameMs = frameMs;
             this.chunkCount = chunkCount;
-            this.buffer = new byte[Math.min(ChatImage.MAX_BYTES, chunkCount * ChatImage.CHUNK_BYTES)];
+            this.buffer = new byte[Math.min(ChatImage.maxBytes(), chunkCount * ChatImage.CHUNK_BYTES)];
             this.startedAt = now;
         }
     }
@@ -81,7 +81,7 @@ public final class ChatImageUploads {
         long now = System.currentTimeMillis();
 
         if (chunkIndex == 0) {
-            if (chunkCount < 1 || chunkCount > ChatImage.MAX_CHUNKS) {
+            if (chunkCount < 1 || chunkCount > ChatImage.maxChunks()) {
                 SESSIONS.remove(playerId);
                 return null;
             }

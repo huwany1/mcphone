@@ -74,7 +74,7 @@ public final class ChatImageSender {
      * 第一档就是 {@link ChatImage#MAX_SIDE}；往下每降一档面积少三成多，噪点最狠的画面
      * 也能落进上限。
      */
-    private static final int[] SIDES = {ChatImage.MAX_SIDE, 320, 256, 192};
+    private static final int[] SIDES = {ChatImage.MAX_SIDE, 384, 320, 256, 192};
 
     /**
      * 动图的降档梯子：先降一帧的尺寸，再隔帧抽稀。
@@ -82,20 +82,21 @@ public final class ChatImageSender {
      * 顺序是"先试更好看的那个"：尺寸掉一档只是糊一点，抽帧掉的是流畅度，而一张动图
      * 之所以是动图，靠的正是流畅。所以 160→128 走在抽帧前面。
      *
-     * 帧最宽 160 是够的：气泡里显示出来只有 80 像素宽，放大之后会糊，但表情本来就是
-     * 看个意思——为了放大好看而让每张表情都占掉几倍的体积，划不来。
+     * 帧最宽 224：气泡里显示出来只有 80 像素宽，但图是点得开的，放大之后铺满内容区，
+     * 在 4 倍 GUI 缩放下是 448 个真实像素。再往上收益就很薄了，而体积按面积涨。
+     * 帧数多的时候一帧会自动更小——雪碧图整张有上限，见 {@link #frameSide}。
      */
     private record AnimStep(int side, int keepEvery) {}
 
     private static final AnimStep[] ANIM_STEPS = {
-            new AnimStep(160, 1),
+            new AnimStep(224, 1),
+            new AnimStep(176, 1),
             new AnimStep(128, 1),
-            new AnimStep(128, 2),
             new AnimStep(96, 2),
             new AnimStep(96, 3),
     };
 
-    /** 压好的字节留几张。一张至多 {@link ChatImage#MAX_BYTES}，八张封顶 1 MB */
+    /** 压好的字节留几张。一张至多 {@link ChatImage#MAX_BYTES_CEILING}，八张封顶 6 MB */
     private static final int MAX_CACHED = 8;
 
     /**
@@ -198,8 +199,12 @@ public final class ChatImageSender {
         sendingSince = System.currentTimeMillis();
         pendingPng = null;
 
+        // 上限在这里取，不在后台线程里取：那是服主的配置（连上来时同步过来的），
+        // 读它是主线程的事，而且一次上传从头到尾该按同一个数来
+        final int maxBytes = ChatImage.maxBytes();
+
         Util.backgroundExecutor().execute(() -> {
-            ImageCodec.Encoded encoded = encodeWithinLimit(photo);
+            ImageCodec.Encoded encoded = encodeWithinLimit(photo, maxBytes);
             Minecraft.getInstance().execute(() -> upload(peer, encoded));
         });
     }
@@ -211,23 +216,23 @@ public final class ChatImageSender {
      * 降档是为了压体积，不是为了更清楚，而 384 → 320 只有 0.83 倍，一次插值就够
      * （{@link ImageCodec#scaleDown} 的逐级减半是给"缩掉一半以上"准备的）。
      */
-    private static ImageCodec.Encoded encodeWithinLimit(Path photo) {
-        String key = cacheKey(photo);
+    private static ImageCodec.Encoded encodeWithinLimit(Path photo, int maxBytes) {
+        String key = cacheKey(photo, maxBytes);
         if (key != null) {
             ImageCodec.Encoded cached = ENCODED.get(key);
             if (cached != null) return cached;
         }
 
         // 动图先按动图试；不是动图、或者怎么抽都塞不进上限，就当一张静态图发第一帧
-        ImageCodec.Encoded encoded = encodeAnimated(photo);
-        if (encoded == null) encoded = encodeStill(photo);
+        ImageCodec.Encoded encoded = encodeAnimated(photo, maxBytes);
+        if (encoded == null) encoded = encodeStill(photo, maxBytes);
 
         if (encoded != null && key != null) ENCODED.put(key, encoded);
         return encoded;
     }
 
     /** 静态图那条路：缩到最大那一档，压不进上限就一档档往下降 */
-    private static ImageCodec.Encoded encodeStill(Path photo) {
+    private static ImageCodec.Encoded encodeStill(Path photo, int maxBytes) {
         BufferedImage src = ImageCodec.read(photo);
         if (src == null) return null;
 
@@ -235,7 +240,7 @@ public final class ChatImageSender {
 
         for (int side : SIDES) {
             ImageCodec.Encoded encoded = ImageCodec.encodePng(base, side);
-            if (encoded != null && encoded.png().length <= ChatImage.MAX_BYTES) return encoded;
+            if (encoded != null && encoded.png().length <= maxBytes) return encoded;
         }
         return null;
     }
@@ -246,7 +251,7 @@ public final class ChatImageSender {
      * 抽稀之后延迟要跟着乘上去：每两帧取一帧，剩下的每一帧就得停两倍的时间，
      * 不然整张动图会播成两倍速。
      */
-    private static ImageCodec.Encoded encodeAnimated(Path photo) {
+    private static ImageCodec.Encoded encodeAnimated(Path photo, int maxBytes) {
         // 帧数上限与"留下来的那一帧多大"都在这一步就交代清楚：拆帧那边照着办，
         // 它才不必把每一帧都按原尺寸留在堆里（见 GifCodec 的"内存"一节）
         GifCodec.Animation anim = GifCodec.read(photo, ANIM_STEPS[0].side(), ChatImage.MAX_FRAMES);
@@ -268,7 +273,7 @@ public final class ChatImageSender {
             if (sheet == null) continue;
 
             ImageCodec.Encoded encoded = ImageCodec.encodePng(sheet, ChatImage.SHEET_MAX_SIDE);
-            if (encoded == null || encoded.png().length > ChatImage.MAX_BYTES) continue;
+            if (encoded == null || encoded.png().length > maxBytes) continue;
 
             // encodePng 记的是整张雪碧图的大小，这里换成一帧的——界面排版要的是一帧多大
             int cols = ChatImage.cols(picked.size());
@@ -312,11 +317,17 @@ public final class ChatImageSender {
         return sheet;
     }
 
-    /** {@link #ENCODED} 的键：路径 + 改动时间 + 大小。属性读不到就返回 null，这一张不缓存 */
-    private static String cacheKey(Path photo) {
+    /**
+     * {@link #ENCODED} 的键：路径 + 改动时间 + 大小 + 当时的字节上限。属性读不到就返回 null，
+     * 这一张不缓存。
+     *
+     * 上限也要进键：换一台服务器就可能换一个上限，而按 512 KB 压出来的那一张，
+     * 在只收 128 KB 的服务器上是发不出去的。
+     */
+    private static String cacheKey(Path photo, int maxBytes) {
         try {
             return photo.toAbsolutePath() + "|" + Files.getLastModifiedTime(photo).toMillis()
-                    + "|" + Files.size(photo);
+                    + "|" + Files.size(photo) + "|" + maxBytes;
         } catch (IOException | RuntimeException e) {
             return null;
         }

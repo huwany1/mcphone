@@ -27,7 +27,7 @@ public record ChatImageDataPacket(UUID image, byte[] data) implements CustomPack
     public static final StreamCodec<ByteBuf, ChatImageDataPacket> STREAM_CODEC =
             StreamCodec.composite(
                     UUIDUtil.STREAM_CODEC, ChatImageDataPacket::image,
-                    ByteBufCodecs.byteArray(ChatImage.MAX_BYTES), ChatImageDataPacket::data,
+                    ByteBufCodecs.byteArray(ChatImage.MAX_BYTES_CEILING), ChatImageDataPacket::data,
                     ChatImageDataPacket::new
             );
 

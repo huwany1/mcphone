@@ -156,17 +156,19 @@ public final class ChatImageStore {
      * 并且把解码整个包在 try 里——这里通过了也不代表那边就该无条件相信。
      */
     public static boolean looksLikePng(byte[] data) {
-        if (data == null || data.length < PNG_HEADER_MIN || data.length > ChatImage.MAX_BYTES) {
+        if (data == null || data.length < PNG_HEADER_MIN || data.length > ChatImage.maxBytes()) {
             return false;
         }
         for (int i = 0; i < PNG_SIGNATURE.length; i++) {
             if (data[i] != PNG_SIGNATURE[i]) return false;
         }
 
+        // 按雪碧图的上限判，不是按一帧的：动图存下来的就是所有帧拼成的那一张，
+        // 它比一帧大好几倍。按一帧判的话，除了最小的那几张动图，其余全会被当成坏图退回
         int width = readInt(data, 16);
         int height = readInt(data, 20);
-        return width >= 1 && width <= ChatImage.MAX_SIDE
-                && height >= 1 && height <= ChatImage.MAX_SIDE;
+        return width >= 1 && width <= ChatImage.SHEET_MAX_SIDE
+                && height >= 1 && height <= ChatImage.SHEET_MAX_SIDE;
     }
 
     private static int readInt(byte[] data, int offset) {

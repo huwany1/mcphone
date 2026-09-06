@@ -20,7 +20,15 @@ public enum ImageOutcome implements ChatOutcome {
     BROKEN,
 
     /** 服务端写不进硬盘。玩家什么都没做错，但必须知道这张图没发出去 */
-    STORE_FAILED;
+    STORE_FAILED,
+
+    /**
+     * 这张图超过了这台服务器定的上限（chatImageMaxKb）。
+     *
+     * 正常客户端压出来的必然装得下——它读的就是服主那一份配置。走到这里说明两边的数
+     * 对不上（配置刚改过、或者客户端被改过）。必须说一句：否则玩家看到的是点了没反应
+     */
+    TOO_BIG;
 
     @Override
     public Component message() {
@@ -29,6 +37,7 @@ public enum ImageOutcome implements ChatOutcome {
             case TOO_FAST     -> Component.translatable("mcphone.chat.image_too_fast");
             case BROKEN       -> Component.translatable("mcphone.chat.image_broken");
             case STORE_FAILED -> Component.translatable("mcphone.chat.image_store_failed");
+            case TOO_BIG      -> Component.translatable("mcphone.chat.image_too_big");
             case OK, NOTHING  -> null;
         };
     }
