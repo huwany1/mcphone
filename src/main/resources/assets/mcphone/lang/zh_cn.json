@@ -177,6 +177,8 @@
   "mcphone.chat.image_store_failed": "服务端存不下这张图，问问服主",
   "mcphone.chat.image_too_big": "这张图超过了服务器定的上限",
   "mcphone.chat.image_encode_failed": "这张图太大了，压不进上限",
+  "mcphone.chat.image_unreadable": "这张图打不开——格式不认得，或者文件是坏的",
+  "mcphone.chat.image_webp": "这张其实是 WebP，改成 .gif 也没用；先转成 GIF 或 PNG",
   "mcphone.config.allow_chat_images": "允许发图片",
   "mcphone.config.chat_image_max_kb": "一张图最多多少 KB",
   "mcphone.chat.teleport_arrived": "%s 传送到了你身边",

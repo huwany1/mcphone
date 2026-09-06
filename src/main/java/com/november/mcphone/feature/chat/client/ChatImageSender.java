@@ -1,5 +1,6 @@
 package com.november.mcphone.feature.chat.client;
 
+import com.november.mcphone.MCphone;
 import com.november.mcphone.core.client.GifCodec;
 import com.november.mcphone.core.client.ImageCodec;
 import com.november.mcphone.feature.chat.ChatImage;
@@ -16,6 +17,7 @@ import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -204,45 +206,92 @@ public final class ChatImageSender {
         final int maxBytes = ChatImage.maxBytes();
 
         Util.backgroundExecutor().execute(() -> {
-            ImageCodec.Encoded encoded = encodeWithinLimit(photo, maxBytes);
-            Minecraft.getInstance().execute(() -> upload(peer, encoded));
+            Attempt attempt;
+            try {
+                attempt = encodeWithinLimit(photo, maxBytes);
+            } catch (RuntimeException | OutOfMemoryError e) {
+                // 在后台线程里抛出去等于没人接：界面会一直"发送中"到 15 秒超时，
+                // 而玩家一句话也看不到。兜住，当"打不开"报出去
+                MCphone.LOGGER.warn("[MCphone] 压这张图时出错 {}: {}", photo.getFileName(), e.toString());
+                attempt = Attempt.failed("mcphone.chat.image_unreadable");
+            }
+            Attempt done = attempt;
+            Minecraft.getInstance().execute(() -> upload(peer, done));
         });
     }
 
     /**
-     * 压到上限之内；每一档都压不下来返回 null。在后台线程。
+     * 压缩的结果：成了带着那张 PNG，没成带着要跟玩家说的那句话。
+     *
+     * 为什么失败也得分个类：以前不论什么原因失败都只说一句"这张图太大了，压不进上限"，
+     * 而实际最常见的失败根本不是大小——是【压根读不出来】：改了扩展名的 WebP、下到一半的
+     * 文件。玩家照着那句话去换更小的图，换几张都一样发不出去，因为问题不在那儿。
+     */
+    private record Attempt(ImageCodec.Encoded encoded, String failureKey) {
+
+        static Attempt of(ImageCodec.Encoded encoded) { return new Attempt(encoded, null); }
+
+        static Attempt failed(String failureKey) { return new Attempt(null, failureKey); }
+    }
+
+    /**
+     * 压到上限之内。在后台线程。
      *
      * 读盘、解码、缩到最大那一档，这三件事一共只做一次：往下几档都从那张 384 的再缩。
      * 降档是为了压体积，不是为了更清楚，而 384 → 320 只有 0.83 倍，一次插值就够
      * （{@link ImageCodec#scaleDown} 的逐级减半是给"缩掉一半以上"准备的）。
      */
-    private static ImageCodec.Encoded encodeWithinLimit(Path photo, int maxBytes) {
+    private static Attempt encodeWithinLimit(Path photo, int maxBytes) {
         String key = cacheKey(photo, maxBytes);
         if (key != null) {
             ImageCodec.Encoded cached = ENCODED.get(key);
-            if (cached != null) return cached;
+            if (cached != null) return Attempt.of(cached);
         }
 
         // 动图先按动图试；不是动图、或者怎么抽都塞不进上限，就当一张静态图发第一帧
-        ImageCodec.Encoded encoded = encodeAnimated(photo, maxBytes);
-        if (encoded == null) encoded = encodeStill(photo, maxBytes);
+        ImageCodec.Encoded animated = encodeAnimated(photo, maxBytes);
+        Attempt attempt = animated != null ? Attempt.of(animated) : encodeStill(photo, maxBytes);
 
-        if (encoded != null && key != null) ENCODED.put(key, encoded);
-        return encoded;
+        if (attempt.encoded() != null && key != null) ENCODED.put(key, attempt.encoded());
+        return attempt;
     }
 
     /** 静态图那条路：缩到最大那一档，压不进上限就一档档往下降 */
-    private static ImageCodec.Encoded encodeStill(Path photo, int maxBytes) {
+    private static Attempt encodeStill(Path photo, int maxBytes) {
         BufferedImage src = ImageCodec.read(photo);
-        if (src == null) return null;
+        if (src == null) return Attempt.failed(unreadableKey(photo));
 
         BufferedImage base = ImageCodec.scaleDown(src, ChatImage.MAX_SIDE);
 
         for (int side : SIDES) {
             ImageCodec.Encoded encoded = ImageCodec.encodePng(base, side);
-            if (encoded != null && encoded.png().length <= maxBytes) return encoded;
+            if (encoded != null && encoded.png().length <= maxBytes) return Attempt.of(encoded);
         }
-        return null;
+        // 走到这儿才是真的"太大了"：最小那一档 192 像素还压不进服主定的上限
+        return Attempt.failed("mcphone.chat.image_encode_failed");
+    }
+
+    /**
+     * 读不出来时该说哪一句。
+     *
+     * 单把 WebP 拎出来，是因为它是最常见的那一种：现在从网上存下来的"GIF 表情"很多其实是
+     * .webp，而把扩展名改成 .gif 不管用——ImageIO 没有 WebP 解码器，认的也是文件头。
+     * 玩家看到"格式不认得"多半会再试一次同样的操作，看到"这是 WebP"才知道该去转一下。
+     */
+    private static String unreadableKey(Path photo) {
+        return looksLikeWebp(photo) ? "mcphone.chat.image_webp" : "mcphone.chat.image_unreadable";
+    }
+
+    /** RIFF....WEBP。只认文件头：扩展名是拖进来的那个人说了算的 */
+    private static boolean looksLikeWebp(Path photo) {
+        try (InputStream in = Files.newInputStream(photo)) {
+            byte[] head = in.readNBytes(12);
+            return head.length == 12
+                    && head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
+                    && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P';
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
     }
 
     /**
@@ -334,9 +383,10 @@ public final class ChatImageSender {
     }
 
     /** 切片发上去。在渲染线程 */
-    private static void upload(UUID peer, ImageCodec.Encoded encoded) {
+    private static void upload(UUID peer, Attempt attempt) {
+        ImageCodec.Encoded encoded = attempt.encoded();
         if (encoded == null) {
-            tell("mcphone.chat.image_encode_failed");
+            tell(attempt.failureKey());
             finish();
             return;
         }

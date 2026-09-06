@@ -177,6 +177,8 @@
   "mcphone.chat.image_store_failed": "The server could not store that photo",
   "mcphone.chat.image_too_big": "That image is over this server's size limit",
   "mcphone.chat.image_encode_failed": "That photo is too big to send",
+  "mcphone.chat.image_unreadable": "Can't open this image — unknown format, or the file is broken",
+  "mcphone.chat.image_webp": "That file is really a WebP; renaming it to .gif won't help. Convert it to GIF or PNG first",
   "mcphone.config.allow_chat_images": "Allow Photo Messages",
   "mcphone.config.chat_image_max_kb": "Max image size (KB)",
   "mcphone.chat.teleport_arrived": "%s teleported to you",

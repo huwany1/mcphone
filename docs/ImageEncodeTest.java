@@ -226,11 +226,20 @@ public class ImageEncodeTest {
         }
     }
 
-    /** ChatImageSender.encodeWithinLimit 是私有的：它是实现细节，但正是要守的那一段 */
+    /**
+     * ChatImageSender.encodeWithinLimit 是私有的：它是实现细节，但正是要守的那一段。
+     *
+     * 它返回的 Attempt 也是私有的（成了带 PNG，没成带要跟玩家说的那句话），所以这里
+     * 反射两层：先拿到 Attempt，再问它 encoded()。
+     */
     static ImageCodec.Encoded encodeWithinLimit(Path photo) throws Exception {
         Method m = ChatImageSender.class.getDeclaredMethod("encodeWithinLimit", Path.class, int.class);
         m.setAccessible(true);
-        return (ImageCodec.Encoded) m.invoke(null, photo, ChatImage.maxBytes());
+        Object attempt = m.invoke(null, photo, ChatImage.maxBytes());
+
+        Method encoded = attempt.getClass().getDeclaredMethod("encoded");
+        encoded.setAccessible(true);
+        return (ImageCodec.Encoded) encoded.invoke(attempt);
     }
 
     static void write(Path path, BufferedImage image) throws IOException {
