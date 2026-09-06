@@ -55,13 +55,25 @@ public final class ChatImageCache {
     }
 
     /**
-     * 缓存条数上限。
+     * 缓存上限，按【字节】算而不是按条数。
      *
-     * 一屏至多显示三四张，留 16 条是给上下翻用的余量。一张 384 长边的图占
-     * 384×216×4 ≈ 330 KB 显存，另外还留着原始的 PNG 字节（至多 128 KB，供"保存到相册"用），
-     * 16 条封顶约 7 MB——比相册那份（96 长边的缩略图）重得多，所以数目要小得多。
+     * 一开始是按条数（16 条）的，那时每条都差不多大：一张 384 长边的图占
+     * 384×216×4 ≈ 330 KB 显存，加上留着的原始 PNG（至多 128 KB）不到半兆。
+     * 动图来了之后这个假设就不成立了——一张雪碧图能到 768×768，解出来 2.25 MB，
+     * 是静态图的七倍。再按条数留 16 条就是 36 MB。
+     *
+     * 16 MB 能装下二三十张静态图，或者六七张动图，而一屏至多显示三四张——
+     * 余量是留给上下翻的。
      */
-    private static final int MAX_ENTRIES = 16;
+    private static final long MAX_CACHE_BYTES = 16L * 1024 * 1024;
+
+    /**
+     * 无论多大都至少留这么多条。
+     *
+     * 上限是按字节卡的，而一屏可能同时显示四张大动图；不留这条底线的话，
+     * 它们会在同一帧里互相把对方挤出去，然后每一帧都重新去要一遍。
+     */
+    private static final int MIN_ENTRIES = 4;
 
     /** 要过之后多久没回音就再要一次 */
     private static final long RETRY_AFTER_MS = 6000L;
@@ -72,6 +84,18 @@ public final class ChatImageCache {
     private static final class Entry {
         Status status = Status.LOADING;
         ImageCodec.Texture texture;
+
+        /**
+         * 这张图有几帧、每帧停多久。由界面在画之前告知（见 {@link #declare}）——
+         * 这两个数来自消息本身（ImageBody），像素里看不出来。
+         *
+         * 记在这里而不是一路传参：放大图那一层拿不到消息，它只有一个 id。
+         */
+        int frames = 1;
+        int frameMs = 0;
+
+        /** 这一条占了多少字节：贴图（宽×高×4）加上留着的 PNG。逐出时按它还账 */
+        long bytes;
 
         /**
          * 原始的 PNG 字节，供「保存到相册」用。
@@ -86,15 +110,10 @@ public final class ChatImageCache {
     }
 
     /** 访问序：每次界面问到都会把它移到最新，被挤掉的必然是很久没显示的那几张 */
-    private static final Map<UUID, Entry> ENTRIES =
-            new LinkedHashMap<>(MAX_ENTRIES + 1, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<UUID, Entry> eldest) {
-                    if (size() <= MAX_ENTRIES) return false;
-                    ImageCodec.release(eldest.getValue().texture);
-                    return true;
-                }
-            };
+    private static final Map<UUID, Entry> ENTRIES = new LinkedHashMap<>(32, 0.75f, true);
+
+    /** ENTRIES 里所有条目的 bytes 之和，逐出的依据 */
+    private static long usedBytes;
 
     private static long lastRequestMs;
 
@@ -121,6 +140,31 @@ public final class ChatImageCache {
             return null;
         }
         return entry.status == Status.READY ? entry.texture : null;
+    }
+
+    /**
+     * 告诉缓存这张图有几帧、每帧停多久。界面在画之前调，值来自消息（见 ImageBody）。
+     *
+     * 每帧调是安全的，也确实需要每帧调：条目会被逐出，逐出之后 {@link #get} 会新建一条
+     * 空的，那条上的帧信息就没了——而放大图那一层只有一个 id，全靠这里。
+     */
+    public static void declare(UUID image, int frames, int frameMs) {
+        if (image == null) return;
+        Entry entry = ENTRIES.computeIfAbsent(image, k -> new Entry());
+        entry.frames = Math.max(1, frames);
+        entry.frameMs = Math.max(0, frameMs);
+    }
+
+    /** 这张图有几帧。没登记过按 1 算（静态图） */
+    public static int frames(UUID image) {
+        Entry entry = ENTRIES.get(image);
+        return entry == null ? 1 : entry.frames;
+    }
+
+    /** 这张动图每帧停多久，毫秒 */
+    public static int frameMs(UUID image) {
+        Entry entry = ENTRIES.get(image);
+        return entry == null ? 0 : entry.frameMs;
     }
 
     /**
@@ -185,11 +229,13 @@ public final class ChatImageCache {
             entry.status = Status.GONE;
             return;
         }
-        entry.png = data;
+        setPng(entry, data);
 
         final int gen = generation;
         Util.backgroundExecutor().execute(() -> {
-            NativeImage decoded = ImageCodec.decodeAndScale(data, ChatImage.MAX_SIDE);
+            // 上限按雪碧图算而不是按一帧算：动图的字节是整张雪碧图，
+            // 按 MAX_SIDE 收会把它缩掉一半，每一帧都跟着糊
+            NativeImage decoded = ImageCodec.decodeAndScale(data, ChatImage.SHEET_MAX_SIDE);
             Minecraft.getInstance().execute(() -> install(image, gen, decoded));
         });
     }
@@ -203,14 +249,32 @@ public final class ChatImageCache {
      */
     public static void seed(UUID image, byte[] png) {
         Entry entry = ENTRIES.computeIfAbsent(image, k -> new Entry());
-        entry.png = png;
+        setPng(entry, png);
         if (entry.status == Status.READY) return;
 
         final int gen = generation;
         Util.backgroundExecutor().execute(() -> {
-            NativeImage decoded = ImageCodec.decodeAndScale(png, ChatImage.MAX_SIDE);
+            NativeImage decoded = ImageCodec.decodeAndScale(png, ChatImage.SHEET_MAX_SIDE);
             Minecraft.getInstance().execute(() -> install(image, gen, decoded));
         });
+    }
+
+    /**
+     * 换掉这一条留着的 PNG，并把账改过来。
+     *
+     * 直接赋值会算错两次：同一张图可能先被 seed 塞进来、随后服务端的回包又送一份
+     * （重试撞上了），那时旧的那份还挂在账上。
+     */
+    private static void setPng(Entry entry, byte[] png) {
+        if (entry.png != null) {
+            entry.bytes -= entry.png.length;
+            usedBytes -= entry.png.length;
+        }
+        entry.png = png;
+        if (png != null) {
+            entry.bytes += png.length;
+            usedBytes += png.length;
+        }
     }
 
     /** 解码完成，回到渲染线程上传贴图 */
@@ -239,6 +303,27 @@ public final class ChatImageCache {
 
         entry.texture = ImageCodec.upload(decoded, "chat_image_");
         entry.status = Status.READY;
+
+        long cost = (long) entry.texture.width() * entry.texture.height() * 4;
+        entry.bytes += cost;
+        usedBytes += cost;
+        trim();
+    }
+
+    /**
+     * 超出字节上限就从最久没显示的那头逐出，直到装得下。
+     *
+     * 只在装好一张贴图之后调：那是唯一一次"占用变大"的时刻。空条目（还在路上的）
+     * 一个字节都不占，不必为它们做这件事。
+     */
+    private static void trim() {
+        var it = ENTRIES.entrySet().iterator();
+        while (usedBytes > MAX_CACHE_BYTES && ENTRIES.size() > MIN_ENTRIES && it.hasNext()) {
+            Entry eldest = it.next().getValue();
+            ImageCodec.release(eldest.texture);
+            usedBytes -= eldest.bytes;
+            it.remove();
+        }
     }
 
     /**
@@ -250,6 +335,7 @@ public final class ChatImageCache {
     public static void clear() {
         for (Entry entry : ENTRIES.values()) ImageCodec.release(entry.texture);
         ENTRIES.clear();
+        usedBytes = 0L;
         lastRequestMs = 0L;
         generation++;
     }

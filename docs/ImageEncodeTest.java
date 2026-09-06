@@ -3,7 +3,14 @@ package com.november.mcphone.feature.chat.client;
 import com.november.mcphone.core.client.ImageCodec;
 import com.november.mcphone.feature.chat.ChatImage;
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageOutputStream;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -30,7 +37,8 @@ import java.util.Random;
  *   1. 表情的透明底不能变成黑底——玩家在表情页看到的与发出去的必须是同一张；
  *   2. 截图不能白留一个 alpha 通道，这条路上每个字节都要过网络；
  *   3. 压不进上限的自动降档，最后一定 ≤ MAX_BYTES、长边 ≤ MAX_SIDE；
- *   4. 同一个文件第二次发直接拿缓存，文件被换掉之后缓存要失效。
+ *   4. 同一个文件第二次发直接拿缓存，文件被换掉之后缓存要失效；
+ *   5. 动图拆帧之后，第几帧就摆在第几格——发件人怎么摆，收件人就怎么取，差一列满屏错位。
  *
  * 测不了的：所有会写日志的失败路径。MCphone.LOGGER 一碰就要初始化模组主类，而那要 FML。
  */
@@ -101,6 +109,82 @@ public class ImageEncodeTest {
             check((back.getRGB(0, 0) >>> 24) == 0, "换上去的那张是透明底，压完应当还是透明的");
         }
 
+        //  6. 动图：拆帧、拼雪碧图、每一格都摆在收件人算得出来的位置上
+
+        int gifFrames = 9;
+        Path gif = dir.resolve("anim.gif");
+        writeGif(gif, 64, gifFrames, 80);
+
+        ImageCodec.Encoded anim = encodeWithinLimit(gif);
+        check(anim != null, "动图应当发得出去");
+        if (anim != null) {
+            check(anim.frames() == gifFrames, "帧数应当是 " + gifFrames + "，实际 " + anim.frames());
+            check(anim.frameMs() == 80, "每帧延迟应当是 80ms，实际 " + anim.frameMs());
+            check(anim.png().length <= ChatImage.MAX_BYTES, "雪碧图不能超过上限");
+
+            BufferedImage sheet = ImageIO.read(new ByteArrayInputStream(anim.png()));
+            int cols = ChatImage.cols(anim.frames());
+            int rows = ChatImage.rows(anim.frames());
+            check(Math.max(sheet.getWidth(), sheet.getHeight()) <= ChatImage.SHEET_MAX_SIDE,
+                    "雪碧图长边不能超过 " + ChatImage.SHEET_MAX_SIDE);
+            check(sheet.getWidth() == cols * anim.width(),
+                    "雪碧图宽应当正好是 列数 × 帧宽（收件人就是这么反算的）");
+            check(sheet.getHeight() == rows * anim.height(),
+                    "雪碧图高应当正好是 行数 × 帧高");
+
+            // 这一条是整件事的关键：发件人怎么摆，收件人就怎么取，差一列就是满屏错位
+            for (int i = 0; i < anim.frames(); i++) {
+                int px = (i % cols) * anim.width() + anim.width() / 2;
+                int py = (i / cols) * anim.height() + anim.height() / 2;
+                check(near(sheet.getRGB(px, py), frameColor(i)),
+                        "第 " + i + " 格里应当是第 " + i + " 帧的颜色");
+            }
+            // 四角是透明的：GIF 的透明底要一路留到雪碧图上
+            check((sheet.getRGB(0, 0) >>> 24) == 0, "动图的透明底应当留到雪碧图上");
+
+            // 存进相册的是第一帧，不是整张九宫格
+            byte[] cell = ImageCodec.cropCell(anim.png(), cols, rows);
+            check(cell != null, "应当裁得出第一帧");
+            if (cell != null) {
+                BufferedImage cropped = ImageIO.read(new ByteArrayInputStream(cell));
+                check(cropped.getWidth() == anim.width() && cropped.getHeight() == anim.height(),
+                        "裁出来的应当正好是一帧的大小");
+                check(near(cropped.getRGB(cropped.getWidth() / 2, cropped.getHeight() / 2),
+                                frameColor(0)),
+                        "裁出来的应当是第一帧");
+            }
+        }
+
+        //  7. 帧太多的自动抽稀，延迟跟着乘上去——不然会播成快进
+
+        Path longGif = dir.resolve("long.gif");
+        writeGif(longGif, 64, 100, 60);
+        ImageCodec.Encoded thinned = encodeWithinLimit(longGif);
+        check(thinned != null, "很长的动图也该发得出去");
+        if (thinned != null) {
+            check(thinned.frames() <= ChatImage.MAX_FRAMES,
+                    "帧数应当被抽到 " + ChatImage.MAX_FRAMES + " 以内，实际 " + thinned.frames());
+            check(thinned.frames() >= ChatImage.MIN_FRAMES, "也不能抽到不成动画");
+            check(thinned.frameMs() > 60 && thinned.frameMs() % 60 == 0,
+                    "抽了几分之一，每帧就该停几倍的时间，实际 " + thinned.frameMs());
+        }
+
+        //  8. 本来就短的动图照发，不能被"抽稀底线"误伤成静态图
+
+        Path shortGif = dir.resolve("short.gif");
+        writeGif(shortGif, 64, 3, 120);
+        ImageCodec.Encoded shortAnim = encodeWithinLimit(shortGif);
+        check(shortAnim != null && shortAnim.frames() == 3,
+                "只有三帧的动图应当原样发成动图，实际 "
+                        + (shortAnim == null ? "发不出去" : shortAnim.frames() + " 帧"));
+
+        //  9. 单帧 GIF 走静态图那条路
+
+        Path oneFrame = dir.resolve("one.gif");
+        writeGif(oneFrame, 64, 1, 100);
+        ImageCodec.Encoded still = encodeWithinLimit(oneFrame);
+        check(still != null && still.frames() == 1, "单帧 GIF 应当当静态图处理");
+
         // 解不开的文件（拖错了、下了一半）这里测不了：那条路要写一行 warn，而 MCphone.LOGGER
         // 一碰就会把整个模组主类初始化起来，那要 FML 已经装好。留给游戏里跑。
 
@@ -122,6 +206,67 @@ public class ImageEncodeTest {
 
     static void write(Path path, BufferedImage image) throws IOException {
         ImageIO.write(image, "png", path.toFile());
+    }
+
+    /** 第 i 帧该是什么颜色。挑得远一点，GIF 量化之后仍分得开 */
+    static int frameColor(int i) {
+        int[] palette = {0xE43B3B, 0x3BE43B, 0x3B3BE4, 0xE4E43B, 0xE43BE4,
+                         0x3BE4E4, 0xE49A3B, 0x9A3BE4, 0x3B9AE4, 0xFFFFFF};
+        return palette[i % palette.length];
+    }
+
+    /** 量化会让颜色偏一点，比大概齐就行 */
+    static boolean near(int actual, int expected) {
+        if ((actual >>> 24) != 0xFF) return false;
+        for (int shift : new int[]{16, 8, 0}) {
+            if (Math.abs(((actual >> shift) & 0xFF) - ((expected >> shift) & 0xFF)) > 24) return false;
+        }
+        return true;
+    }
+
+    /** 造一张动图：每帧一块纯色方块，四周留透明边——颜色用来验"第几帧摆在第几格" */
+    static void writeGif(Path path, int size, int frames, int delayMs) throws IOException {
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("gif").next();
+        try (ImageOutputStream out = ImageIO.createImageOutputStream(path.toFile())) {
+            writer.setOutput(out);
+            writer.prepareWriteSequence(null);
+
+            for (int i = 0; i < frames; i++) {
+                BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g = img.createGraphics();
+                g.setComposite(AlphaComposite.Src);
+                g.setColor(new Color(frameColor(i)));
+                g.fillRect(size / 8, size / 8, size * 3 / 4, size * 3 / 4);
+                g.dispose();
+
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                IIOMetadata meta = writer.getDefaultImageMetadata(
+                        ImageTypeSpecifier.createFromRenderedImage(img), param);
+                String format = meta.getNativeMetadataFormatName();
+                IIOMetadataNode root = (IIOMetadataNode) meta.getAsTree(format);
+                IIOMetadataNode gce = childNode(root, "GraphicControlExtension");
+                gce.setAttribute("delayTime", String.valueOf(delayMs / 10));
+                gce.setAttribute("disposalMethod", "restoreToBackgroundColor");
+                gce.setAttribute("transparentColorFlag", "TRUE");
+                meta.setFromTree(format, root);
+
+                writer.writeToSequence(new IIOImage(img, null, meta), param);
+            }
+            writer.endWriteSequence();
+        } finally {
+            writer.dispose();
+        }
+    }
+
+    static IIOMetadataNode childNode(IIOMetadataNode root, String name) {
+        for (int i = 0; i < root.getLength(); i++) {
+            if (root.item(i).getNodeName().equalsIgnoreCase(name)) {
+                return (IIOMetadataNode) root.item(i);
+            }
+        }
+        IIOMetadataNode node = new IIOMetadataNode(name);
+        root.appendChild(node);
+        return node;
     }
 
     /** 一张透明底的表情：中间一张黄脸，四周全透明 */

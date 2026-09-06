@@ -39,7 +39,7 @@ public final class StickerLibrary {
 
     private static final int MIN_CACHED = 24;
 
-    /** ImageIO 自带解码器认得的那几种。gif 只取第一帧——手机上不做动图 */
+    /** ImageIO 自带解码器认得的那几种。gif 是动的：拆帧拼成雪碧图发出去，见 ChatImageSender */
     private static final Set<String> EXTENSIONS =
             Set.of(".png", ".jpg", ".jpeg", ".gif", ".bmp");
 

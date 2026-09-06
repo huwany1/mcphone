@@ -34,8 +34,9 @@ public final class ChatImageUploads {
 
     private ChatImageUploads() {}
 
-    /** 拼齐了的一张图 */
-    public record Assembled(UUID target, int width, int height, byte[] png) {}
+    /** 拼齐了的一张图。width/height 是一帧的大小，动图的 png 是所有帧拼成的雪碧图 */
+    public record Assembled(UUID target, int width, int height, int frames, int frameMs,
+                            byte[] png) {}
 
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
 
@@ -43,6 +44,8 @@ public final class ChatImageUploads {
         final UUID target;
         final int width;
         final int height;
+        final int frames;
+        final int frameMs;
         final int chunkCount;
         final byte[] buffer;
         final long startedAt;
@@ -50,10 +53,13 @@ public final class ChatImageUploads {
         int nextChunk;
         int size;
 
-        Session(UUID target, int width, int height, int chunkCount, long now) {
+        Session(UUID target, int width, int height, int frames, int frameMs,
+                int chunkCount, long now) {
             this.target = target;
             this.width = width;
             this.height = height;
+            this.frames = frames;
+            this.frameMs = frameMs;
             this.chunkCount = chunkCount;
             this.buffer = new byte[Math.min(ChatImage.MAX_BYTES, chunkCount * ChatImage.CHUNK_BYTES)];
             this.startedAt = now;
@@ -68,6 +74,7 @@ public final class ChatImageUploads {
      * 而每多一条补救路径就多一处能被绕开的地方。
      */
     public static Assembled accept(ServerPlayer player, UUID target, int width, int height,
+                                   int frames, int frameMs,
                                    int chunkIndex, int chunkCount, byte[] chunk) {
 
         UUID playerId = player.getUUID();
@@ -78,7 +85,7 @@ public final class ChatImageUploads {
                 SESSIONS.remove(playerId);
                 return null;
             }
-            SESSIONS.put(playerId, new Session(target, width, height, chunkCount, now));
+            SESSIONS.put(playerId, new Session(target, width, height, frames, frameMs, chunkCount, now));
         }
 
         Session session = SESSIONS.get(playerId);
@@ -89,6 +96,8 @@ public final class ChatImageUploads {
                 && session.target.equals(target)
                 && session.width == width
                 && session.height == height
+                && session.frames == frames
+                && session.frameMs == frameMs
                 && now - session.startedAt <= ChatImage.UPLOAD_TIMEOUT_MS
                 && chunk.length <= ChatImage.CHUNK_BYTES
                 && session.size + chunk.length <= session.buffer.length;
@@ -109,7 +118,8 @@ public final class ChatImageUploads {
         // buffer 是按上限开的，末片多半没填满，截到真实长度再交出去
         byte[] png = new byte[session.size];
         System.arraycopy(session.buffer, 0, png, 0, session.size);
-        return new Assembled(session.target, session.width, session.height, png);
+        return new Assembled(session.target, session.width, session.height,
+                session.frames, session.frameMs, png);
     }
 
     /**

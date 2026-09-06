@@ -5,6 +5,8 @@ import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.PhoneSkin;
 import com.november.mcphone.core.client.PhoneTheme;
 import com.november.mcphone.core.client.PlayerAvatar;
+import com.november.mcphone.core.client.ImageCodec;
+import com.november.mcphone.feature.chat.ChatImage;
 import com.november.mcphone.feature.chat.ChatMessage;
 import com.november.mcphone.feature.chat.ImageBody;
 import com.november.mcphone.feature.chat.TextBody;
@@ -204,9 +206,12 @@ public final class ChatConversation {
      * 图片块为什么在这一步就把尺寸算好：像素是"看到了才去要"的（见 {@link ChatImageCache}），
      * 拿到之前也得把那块地方占出来，尺寸按消息自带的宽高算（见 ImageBody）。等图到了再按真实
      * 比例重排的话，那一下跳动恰好发生在玩家正看着的地方。
+     *
+     * frames/frameMs 也从消息上抄过来（静态图是 1 和 0）：像素里看不出一张图是不是动图，
+     * 而画的时候要靠它挑帧。
      */
     private record Block(BlockType type, boolean self, List<FormattedCharSequence> lines,
-                         UUID image, int w, int h) {}
+                         UUID image, int w, int h, int frames, int frameMs) {}
 
     /**
      * 进入会话。必须先 openConversation 再发请求，顺序不能颠倒：
@@ -321,7 +326,7 @@ public final class ChatConversation {
         }
 
         int hintH = font.lineHeight + 2;
-        GuiUtil.drawFitted(g, texture, areaX + 2, areaY + 2 + font.lineHeight,
+        drawImage(g, texture, viewingImage, areaX + 2, areaY + 2 + font.lineHeight,
                 areaW - 4, areaH - 6 - hintH - font.lineHeight);
 
         // 「保存」摆右上角，与相册单张查看里的删除同一个位置：那一角是这一层唯一的动作，
@@ -359,10 +364,18 @@ public final class ChatConversation {
             return;
         }
 
+        // 动图存下来的是所有帧拼成的雪碧图，原样进相册就是一张莫名其妙的九宫格；存第一帧
+        int frames = ChatImageCache.frames(image);
+        final boolean animated = frames > 1;
+
         Util.backgroundExecutor().execute(() -> {
-            String name = PhotoLibrary.save(png, "mcphone-");
+            byte[] saving = animated
+                    ? ImageCodec.cropCell(png, ChatImage.cols(frames), ChatImage.rows(frames))
+                    : png;
+            String name = saving == null ? null : PhotoLibrary.save(saving, "mcphone-");
             Minecraft.getInstance().execute(() -> {
                 if (name == null) tell("mcphone.chat.image_save_failed");
+                else if (animated) tell("mcphone.chat.image_saved_frame", name);
                 else tell("mcphone.chat.image_saved", name);
             });
         });
@@ -486,11 +499,14 @@ public final class ChatConversation {
         int w = b.w();
         int h = b.h();
 
+        // 每帧都告知：条目被逐出后会被重建成一条空的，而放大图那一层只有一个 id
+        ChatImageCache.declare(b.image(), b.frames(), b.frameMs());
+
         var texture = ChatImageCache.get(b.image());
         if (texture != null) {
             // 有像素才记位置：点一张还没到、或者已经过期的图，放大了也只是一块空白
             imageHits.add(new ImageHit(b.image(), bx, y, w, h));
-            GuiUtil.drawFitted(g, texture, bx, y, w, h);
+            drawImage(g, texture, b.image(), bx, y, w, h);
             return;
         }
 
@@ -507,6 +523,32 @@ public final class ChatConversation {
                 bx + Math.max(0, (w - font.width(hint)) / 2),
                 y + (h - font.lineHeight) / 2,
                 colorEmpty(), false);
+    }
+
+    /**
+     * 画这张图：静态图整张画，动图按时间挑一帧。
+     *
+     * 挑帧用墙上时间，而不是给每条消息各记一个播放起点：动图是循环播的，从哪一帧开始看
+     * 都一样，而记起点意味着每条消息多一份状态，还要在滚动、重排、翻回历史时维护它。
+     * 顺带的好处是同一张表情在屏幕上出现几次都是同步的，看着像一个整体。
+     */
+    private static void drawImage(GuiGraphics g, ImageCodec.Texture sheet, UUID id,
+                                  int x, int y, int boxW, int boxH) {
+        int frames = ChatImageCache.frames(id);
+        int cols = ChatImage.cols(frames);
+        int fw = sheet.width() / cols;
+        int fh = sheet.height() / ChatImage.rows(frames);
+
+        // 帧数与贴图对不上（伪造的消息，或者贴图被缩过）就整张画：糊一点也好过一片空白
+        if (frames <= 1 || fw <= 0 || fh <= 0) {
+            GuiUtil.drawFitted(g, sheet, x, y, boxW, boxH);
+            return;
+        }
+
+        int frameMs = ChatImageCache.frameMs(id);
+        int index = frameMs <= 0 ? 0 : (int) ((System.currentTimeMillis() / frameMs) % frames);
+        GuiUtil.drawFittedRegion(g, sheet, (index % cols) * fw, (index / cols) * fh, fw, fh,
+                x, y, boxW, boxH);
     }
 
     private void renderInputBar(GuiGraphics g, Font font, int x, int y, int w,
@@ -652,7 +694,7 @@ public final class ChatConversation {
                 FormattedCharSequence stamp =
                         Component.literal(formatStamp(m.time())).getVisualOrderText();
                 out.add(new Block(BlockType.STAMP, false, List.of(stamp), null,
-                        font.width(stamp), font.lineHeight + STAMP_PAD_Y * 2));
+                        font.width(stamp), font.lineHeight + STAMP_PAD_Y * 2, 1, 0));
             }
             prevTime = m.time();
 
@@ -670,7 +712,7 @@ public final class ChatConversation {
 
             out.add(new Block(BlockType.TEXT, self, lines, null,
                     textW + BUBBLE_PAD_X * 2,
-                    lines.size() * font.lineHeight + BUBBLE_PAD_Y * 2));
+                    lines.size() * font.lineHeight + BUBBLE_PAD_Y * 2, 1, 0));
         }
 
         int total = 0;
@@ -700,7 +742,8 @@ public final class ChatConversation {
         int w = Math.max(1, Math.round(image.width() * scale));
         int h = Math.max(1, Math.round(image.height() * scale));
 
-        return new Block(BlockType.IMAGE, self, List.of(), image.image(), w, h);
+        return new Block(BlockType.IMAGE, self, List.of(), image.image(), w, h,
+                image.frames(), image.frameMs());
     }
 
     public boolean mouseClicked(double mx, double my, int button) {

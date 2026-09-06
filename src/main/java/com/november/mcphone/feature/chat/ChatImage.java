@@ -58,4 +58,57 @@ public final class ChatImage {
 
     /** 一次上传从第一片到最后一片的时限。超时即丢弃，防止半截上传永远占着内存 */
     public static final long UPLOAD_TIMEOUT_MS = 15_000L;
+
+    //  动图
+
+    /**
+     * 动图怎么传：所有帧拼成【一张 PNG】。
+     *
+     * 这样一来上面那些数一个都不用改——还是一张 PNG、还是 128 KB 上限、还是按内容去重
+     * （同一张动图表情反复发仍然只存一份）、服务端仍然不必解码。收件人也只上传一张贴图，
+     * 播放就是按时间挑一个子矩形画出来。
+     *
+     * 转发原始 GIF 字节那条路走不通：源文件常有一两百 KB，超了上限就得重新编码，
+     * 而重编 GIF 要重新量化调色板，画质掉得比缩成 PNG 还厉害。
+     *
+     * 帧摆成尽量方的网格（见 {@link #cols}）而不是排成一长条：一长条的长边很快就撞上
+     * 显卡的贴图尺寸上限，而方阵的长边只按帧数开平方涨。
+     */
+    public static final int MAX_FRAMES = 36;
+
+    /**
+     * 抽稀的底线：抽到少于这么多帧就别抽了。
+     *
+     * 压不进上限时会隔帧抽稀，但抽到只剩四五帧的动画看着是卡顿而不是动画——
+     * 那还不如老老实实发第一帧，至少它是清楚的。
+     *
+     * 卡的只是抽稀。原图本来就只有三帧的眨眼表情照发不误——那是它本来的样子，
+     * 不是被我们抽坏的。
+     */
+    public static final int MIN_FRAMES = 6;
+
+    /**
+     * 雪碧图的长边上限。
+     *
+     * 卡的是显存：一张 768×768 的贴图解出来是 2.25 MB，而客户端要同时留着好几张
+     * （见 ChatImageCache）。再大一格的收益也很有限——帧本身最宽才 160，
+     * 而气泡里显示出来只有 80。
+     */
+    public static final int SHEET_MAX_SIDE = 768;
+
+    /**
+     * 雪碧图一行摆几帧。
+     *
+     * 发件人按它拼图、收件人按它取帧，两边必须是同一份实现——差一列，
+     * 收到的动画就是每帧都错位的一团乱麻。所以这个方法放在这个两边都依赖的类里。
+     */
+    public static int cols(int frames) {
+        return Math.max(1, (int) Math.ceil(Math.sqrt(Math.max(1, frames))));
+    }
+
+    /** 雪碧图一共几行 */
+    public static int rows(int frames) {
+        int cols = cols(frames);
+        return (Math.max(1, frames) + cols - 1) / cols;
+    }
 }

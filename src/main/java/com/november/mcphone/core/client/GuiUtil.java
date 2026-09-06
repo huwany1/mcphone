@@ -101,14 +101,27 @@ public final class GuiUtil {
      */
     public static void drawFitted(GuiGraphics g, ImageCodec.Texture texture,
                                   int x, int y, int boxW, int boxH) {
-        if (texture == null || boxW <= 0 || boxH <= 0) return;
+        if (texture == null) return;
+        drawFittedRegion(g, texture, 0, 0, texture.width(), texture.height(), x, y, boxW, boxH);
+    }
 
-        float scale = Math.min((float) boxW / texture.width(), (float) boxH / texture.height());
-        int w = Math.max(1, Math.round(texture.width() * scale));
-        int h = Math.max(1, Math.round(texture.height() * scale));
+    /**
+     * 同上，但只画贴图上的一块。
+     *
+     * 动图靠它：一张动图的所有帧拼在同一张贴图里（见 ChatImage 的"动图"一节），
+     * 播到第几帧就是取第几块。
+     */
+    public static void drawFittedRegion(GuiGraphics g, ImageCodec.Texture texture,
+                                        int u, int v, int srcW, int srcH,
+                                        int x, int y, int boxW, int boxH) {
+        if (texture == null || srcW <= 0 || srcH <= 0 || boxW <= 0 || boxH <= 0) return;
+
+        float scale = Math.min((float) boxW / srcW, (float) boxH / srcH);
+        int w = Math.max(1, Math.round(srcW * scale));
+        int h = Math.max(1, Math.round(srcH * scale));
 
         drawTexture(g, texture.location(), x + (boxW - w) / 2, y + (boxH - h) / 2, w, h,
-                texture.width(), texture.height());
+                u, v, srcW, srcH, texture.width(), texture.height());
     }
 
     //  物品图标

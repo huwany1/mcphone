@@ -205,6 +205,7 @@ public final class ChatNetworking {
 
             ChatImageUploads.Assembled upload = ChatImageUploads.accept(
                     sender, packet.target(), packet.width(), packet.height(),
+                    packet.frames(), packet.frameMs(),
                     packet.chunkIndex(), packet.chunkCount(), packet.chunk());
             if (upload == null) return;
 
@@ -239,7 +240,8 @@ public final class ChatNetworking {
                 }
 
                 ChatMessage message = ChatService.sendImage(sender, upload.target(),
-                        imageId, upload.width(), upload.height());
+                        imageId, upload.width(), upload.height(),
+                        upload.frames(), upload.frameMs());
                 if (message == null) {
                     // 写盘这一会儿工夫里关系变了（解除好友、手机丢了）：把刚落地的那张图收回去，
                     // 否则它就是一张永远没有消息认领的孤儿。走"没人认领才删"那条——

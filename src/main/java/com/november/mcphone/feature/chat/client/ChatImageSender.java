@@ -1,5 +1,6 @@
 package com.november.mcphone.feature.chat.client;
 
+import com.november.mcphone.core.client.GifCodec;
 import com.november.mcphone.core.client.ImageCodec;
 import com.november.mcphone.feature.chat.ChatImage;
 import com.november.mcphone.feature.chat.ChatMessage;
@@ -11,14 +12,18 @@ import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.awt.AlphaComposite;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,6 +49,12 @@ import java.util.UUID;
  * 压出来的结果只取决于文件内容，所以按文件记在 {@link #ENCODED} 里。表情天生要反复发
  * 同一张，第二次起直接拿现成的字节走，那一段等待就没有了。
  *
+ * 动图
+ *
+ * GIF 拆成帧、拼成一张雪碧图发出去（见 {@link ChatImage} 的"动图"一节）。压不进上限时
+ * 先降帧的尺寸、再隔帧抽稀（见 {@link #ANIM_STEPS}）；抽到不成动画了就退回去发第一帧，
+ * 那总比发不出去强。
+ *
  * 一次只发一张，点快了的排队
  *
  * 同时只允许一次上传：压缩是异步的，两次上传交错着发上去，而服务端按"片号必须连续"收
@@ -64,6 +75,25 @@ public final class ChatImageSender {
      * 也能落进上限。
      */
     private static final int[] SIDES = {ChatImage.MAX_SIDE, 320, 256, 192};
+
+    /**
+     * 动图的降档梯子：先降一帧的尺寸，再隔帧抽稀。
+     *
+     * 顺序是"先试更好看的那个"：尺寸掉一档只是糊一点，抽帧掉的是流畅度，而一张动图
+     * 之所以是动图，靠的正是流畅。所以 160→128 走在抽帧前面。
+     *
+     * 帧最宽 160 是够的：气泡里显示出来只有 80 像素宽，放大之后会糊，但表情本来就是
+     * 看个意思——为了放大好看而让每张表情都占掉几倍的体积，划不来。
+     */
+    private record AnimStep(int side, int keepEvery) {}
+
+    private static final AnimStep[] ANIM_STEPS = {
+            new AnimStep(160, 1),
+            new AnimStep(128, 1),
+            new AnimStep(128, 2),
+            new AnimStep(96, 2),
+            new AnimStep(96, 3),
+    };
 
     /** 压好的字节留几张。一张至多 {@link ChatImage#MAX_BYTES}，八张封顶 1 MB */
     private static final int MAX_CACHED = 8;
@@ -188,6 +218,16 @@ public final class ChatImageSender {
             if (cached != null) return cached;
         }
 
+        // 动图先按动图试；不是动图、或者怎么抽都塞不进上限，就当一张静态图发第一帧
+        ImageCodec.Encoded encoded = encodeAnimated(photo);
+        if (encoded == null) encoded = encodeStill(photo);
+
+        if (encoded != null && key != null) ENCODED.put(key, encoded);
+        return encoded;
+    }
+
+    /** 静态图那条路：缩到最大那一档，压不进上限就一档档往下降 */
+    private static ImageCodec.Encoded encodeStill(Path photo) {
         BufferedImage src = ImageCodec.read(photo);
         if (src == null) return null;
 
@@ -195,12 +235,81 @@ public final class ChatImageSender {
 
         for (int side : SIDES) {
             ImageCodec.Encoded encoded = ImageCodec.encodePng(base, side);
-            if (encoded != null && encoded.png().length <= ChatImage.MAX_BYTES) {
-                if (key != null) ENCODED.put(key, encoded);
-                return encoded;
-            }
+            if (encoded != null && encoded.png().length <= ChatImage.MAX_BYTES) return encoded;
         }
         return null;
+    }
+
+    /**
+     * 动图那条路：拆帧 → 拼雪碧图 → 压。不是动图、或者每一档都压不进上限，返回 null。
+     *
+     * 抽稀之后延迟要跟着乘上去：每两帧取一帧，剩下的每一帧就得停两倍的时间，
+     * 不然整张动图会播成两倍速。
+     */
+    private static ImageCodec.Encoded encodeAnimated(Path photo) {
+        // 帧数上限与"留下来的那一帧多大"都在这一步就交代清楚：拆帧那边照着办，
+        // 它才不必把每一帧都按原尺寸留在堆里（见 GifCodec 的"内存"一节）
+        GifCodec.Animation anim = GifCodec.read(photo, ANIM_STEPS[0].side(), ChatImage.MAX_FRAMES);
+        if (anim == null) return null;
+
+        List<BufferedImage> all = anim.frames();
+
+        for (AnimStep ladder : ANIM_STEPS) {
+            int step = ladder.keepEvery();
+
+            List<BufferedImage> picked = new ArrayList<>();
+            for (int i = 0; i < all.size(); i += step) picked.add(all.get(i));
+
+            // 这条闸只管抽稀，不管原图本来有几帧：本来就只有三帧的眨眼表情该原样发出去，
+            // 拿它跟"抽到只剩三帧"一视同仁的话，短动图就永远发不成动图
+            if (picked.size() < Math.min(ChatImage.MIN_FRAMES, all.size())) continue;
+
+            BufferedImage sheet = sheet(picked, frameSide(ladder.side(), picked.size()));
+            if (sheet == null) continue;
+
+            ImageCodec.Encoded encoded = ImageCodec.encodePng(sheet, ChatImage.SHEET_MAX_SIDE);
+            if (encoded == null || encoded.png().length > ChatImage.MAX_BYTES) continue;
+
+            // encodePng 记的是整张雪碧图的大小，这里换成一帧的——界面排版要的是一帧多大
+            int cols = ChatImage.cols(picked.size());
+            return new ImageCodec.Encoded(encoded.png(),
+                    encoded.width() / cols, encoded.height() / ChatImage.rows(picked.size()),
+                    picked.size(), anim.frameMs() * step);
+        }
+        return null;
+    }
+
+    /** 这么多帧摆开之后，一帧最多还能有多大——雪碧图整张不能超过 {@link ChatImage#SHEET_MAX_SIDE} */
+    private static int frameSide(int wanted, int frames) {
+        int grid = Math.max(ChatImage.cols(frames), ChatImage.rows(frames));
+        return Math.max(16, Math.min(wanted, ChatImage.SHEET_MAX_SIDE / grid));
+    }
+
+    /**
+     * 把这几帧摆成一张网格图，每帧等比缩到长边不超过 side。
+     *
+     * 缩放走 {@link ImageCodec#scaleDown} 的逐级减半，而不是一步拉到位：一步到位等于
+     * 每个目标像素只采样了源图的 2×2，细密的表情缩完全是噪点。
+     */
+    private static BufferedImage sheet(List<BufferedImage> frames, int side) {
+        BufferedImage first = ImageCodec.scaleDown(frames.get(0), side);
+        int fw = first.getWidth();
+        int fh = first.getHeight();
+        if (fw <= 0 || fh <= 0) return null;
+
+        int cols = ChatImage.cols(frames.size());
+        BufferedImage sheet = new BufferedImage(
+                cols * fw, ChatImage.rows(frames.size()) * fh, BufferedImage.TYPE_INT_ARGB);
+
+        Graphics2D g = sheet.createGraphics();
+        // Src 而不是 SrcOver：每一格都是独立的一帧，要的是照抄，不是叠上去
+        g.setComposite(AlphaComposite.Src);
+        for (int i = 0; i < frames.size(); i++) {
+            BufferedImage frame = i == 0 ? first : ImageCodec.scaleDown(frames.get(i), side);
+            g.drawImage(frame, (i % cols) * fw, (i / cols) * fh, fw, fh, null);
+        }
+        g.dispose();
+        return sheet;
     }
 
     /** {@link #ENCODED} 的键：路径 + 改动时间 + 大小。属性读不到就返回 null，这一张不缓存 */
@@ -236,7 +345,8 @@ public final class ChatImageSender {
             System.arraycopy(png, from, chunk, 0, chunk.length);
 
             PacketDistributor.sendToServer(new SendChatImagePacket(
-                    peer, encoded.width(), encoded.height(), index, chunkCount, chunk));
+                    peer, encoded.width(), encoded.height(), encoded.frames(), encoded.frameMs(),
+                    index, chunkCount, chunk));
         }
 
         // 等回声。同一条连接上包是有序的，服务端拼齐后会把消息发回来

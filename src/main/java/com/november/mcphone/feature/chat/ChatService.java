@@ -93,12 +93,13 @@ public final class ChatService {
      * 或者被对方解除了好友。返回 null 时调用方负责把刚写下的那张图删掉。
      */
     public static ChatMessage sendImage(ServerPlayer sender, UUID targetId,
-                                        UUID imageId, int width, int height) {
+                                        UUID imageId, int width, int height,
+                                        int frames, int frameMs) {
         if (maySendImage(sender, targetId) != ImageOutcome.OK) return null;
 
         UUID senderId = sender.getUUID();
         ChatMessage message = new ChatMessage(senderId, System.currentTimeMillis(),
-                new ImageBody(imageId, width, height));
+                new ImageBody(imageId, width, height, frames, frameMs));
         store(sender, targetId, message);
         trimImages(sender.server, senderId, targetId);
 

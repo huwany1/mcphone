@@ -51,8 +51,16 @@ public final class ImageCodec {
      */
     public record Texture(ResourceLocation location, int width, int height) {}
 
-    /** 一张压好、可以直接发出去的 PNG */
-    public record Encoded(byte[] png, int width, int height) {}
+    /**
+     * 一张压好、可以直接发出去的 PNG。
+     *
+     * width/height 是【一帧】的大小，不一定是这张 PNG 的大小：动图的 png 是所有帧拼成的
+     * 雪碧图（见 ChatImage 的"动图"一节），比一帧大好几倍。界面排版要的是一帧多大，
+     * 所以这里记的是帧。
+     *
+     * frames = 1、frameMs = 0 就是一张普通静态图。
+     */
+    public record Encoded(byte[] png, int width, int height, int frames, int frameMs) {}
 
     /** 贴图 ResourceLocation 的自增序号，保证路径唯一且字符合法 */
     private static int textureSeq = 0;
@@ -134,7 +142,7 @@ public final class ImageCodec {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             if (!ImageIO.write(out, "png", bytes)) return null;
 
-            return new Encoded(bytes.toByteArray(), out.getWidth(), out.getHeight());
+            return new Encoded(bytes.toByteArray(), out.getWidth(), out.getHeight(), 1, 0);
         } catch (IOException | RuntimeException e) {
             MCphone.LOGGER.warn("[MCphone] 图片压缩失败: {}", e.getMessage());
             return null;
@@ -160,6 +168,35 @@ public final class ImageCodec {
             }
         }
         return false;
+    }
+
+    /**
+     * 从一张网格图里裁出左上角那一格，重新编成 PNG。裁不出来返回 null。后台线程调用。
+     *
+     * 「保存到相册」用：动图收到的是所有帧拼成的雪碧图，原样存进相册就是一张莫名其妙的
+     * 九宫格。相册里该躺一张能看的图，所以存第一帧。
+     */
+    public static byte[] cropCell(byte[] png, int cols, int rows) {
+        if (png == null || cols <= 0 || rows <= 0) return null;
+
+        try (InputStream in = new ByteArrayInputStream(png)) {
+            BufferedImage sheet = ImageIO.read(in);
+            if (sheet == null) return null;
+
+            int w = sheet.getWidth() / cols;
+            int h = sheet.getHeight() / rows;
+            if (w <= 0 || h <= 0) return null;
+
+            // maxSide 给足，这一步只裁不缩
+            Encoded cell = encodePng(sheet.getSubimage(0, 0, w, h), Math.max(w, h));
+            return cell == null ? null : cell.png();
+        } catch (IOException | RuntimeException e) {
+            MCphone.LOGGER.warn("[MCphone] 裁帧失败: {}", e.getMessage());
+            return null;
+        } catch (OutOfMemoryError e) {
+            MCphone.LOGGER.warn("[MCphone] 裁帧时内存不足");
+            return null;
+        }
     }
 
     /** 把已就绪的 NativeImage 注册成贴图。必须在渲染线程调用 */

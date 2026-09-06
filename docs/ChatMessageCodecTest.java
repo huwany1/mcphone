@@ -117,6 +117,37 @@ public class ChatMessageCodecTest {
         eq(clamped.width(), ChatImage.MAX_SIDE, "越界的宽应当夹到上限");
         eq(clamped.height(), 1, "越界的高应当夹到下限");
 
+        //  动图：帧信息转一圈，且没有帧信息的老记录读成静态图
+
+        ChatMessage sticker = new ChatMessage(sender, 1_700_000_003_000L,
+                new ImageBody(image, 128, 128, 24, 60));
+        Tag encodedSticker = encode(sticker, "动图消息");
+        eq(decode(encodedSticker, "动图消息"), sticker, "动图消息转一圈应当原样回来");
+
+        FriendlyByteBuf animBuf = new FriendlyByteBuf(Unpooled.buffer());
+        ChatMessage.STREAM_CODEC.encode(animBuf, sticker);
+        eq(ChatMessage.STREAM_CODEC.decode(animBuf), sticker, "动图消息过网络应当原样回来");
+        eq(animBuf.readableBytes(), 0, "解完应当正好读空");
+
+        // 1.9.0 开发期间写下的图片消息没有 frames/frame_ms 这两个字段：必须读成静态图，
+        // 而不是让整份聊天记录解不出来
+        if (encodedPhoto instanceof CompoundTag photoTag
+                && photoTag.get("body") instanceof CompoundTag bodyTag) {
+            check(!bodyTag.contains("frames"),
+                    "静态图不该写 frames 字段——写了就等于老客户端也读不了");
+            eq(decode(encodedPhoto, "无帧字段的图片消息"), photo,
+                    "没有帧字段的图片消息应当读成静态图");
+        }
+
+        //  伪造的帧数与延迟同样要夹住
+
+        ImageBody forged = new ImageBody(image, 64, 64, 2_000_000_000, 0);
+        eq(forged.frames(), ChatImage.MAX_FRAMES, "越界的帧数应当夹到上限");
+        check(forged.frameMs() >= 20, "动图的每帧延迟不能是 0，否则取帧时会除零");
+
+        ImageBody still = new ImageBody(image, 64, 64, 1, 999);
+        eq(still.frameMs(), 0, "静态图不该带着一个延迟到处跑");
+
         //  网络编解码转一圈
 
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
