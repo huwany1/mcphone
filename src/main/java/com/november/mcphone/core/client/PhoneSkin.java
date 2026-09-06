@@ -1,9 +1,11 @@
 package com.november.mcphone.core.client;
 
+import com.google.gson.JsonObject;
 import com.november.mcphone.MCphone;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.metadata.MetadataSectionSerializer;
 import net.minecraft.server.packs.resources.Resource;
 
 import java.io.InputStream;
@@ -60,7 +62,7 @@ public final class PhoneSkin {
         /** 拖图标停在屏幕边上时的翻页提示条。建议 10×176（竖条），整张按透明度淡入，画实心即可；兜底色 {@link PhoneTheme#COLOR_PAGE_EDGE} */
         HOME_PAGE_EDGE("phone/page_edge", "home_page_edge"),
 
-        /** 自己发出的聊天气泡底。整张拉伸（无九宫格），纯色或纵向渐变最稳妥 */
+        /** 自己发出的聊天气泡底。默认整张拉伸；mcphone_skin.border 元数据可启用固定边角 */
         CHAT_BUBBLE_SELF("chat/bubble_self", "chat_bubble_self"),
 
         /** 对方发来的聊天气泡底。拉伸方式同 {@link #CHAT_BUBBLE_SELF} */
@@ -190,7 +192,18 @@ public final class PhoneSkin {
     }
 
     /** 一张已确认存在的贴图及其真实尺寸 */
-    private record SkinTexture(ResourceLocation location, int width, int height) {}
+    private record SkinTexture(ResourceLocation location, int width, int height, int border) {}
+
+    /** 可选的源像素边宽；未声明时沿用旧资源包的整张拉伸行为。 */
+    private static final MetadataSectionSerializer<Integer> SKIN_METADATA = new MetadataSectionSerializer<>() {
+        @Override
+        public String getMetadataSectionName() { return "mcphone_skin"; }
+
+        @Override
+        public Integer fromJson(JsonObject json) {
+            return json.has("border") ? json.get("border").getAsInt() : 0;
+        }
+    };
 
     /** 探测结果缓存；empty（没有这张贴图）也要缓存，否则缺贴图的元素每帧都要查一次资源管理器 */
     private static final Map<Element, Optional<SkinTexture>> CACHE = new HashMap<>();
@@ -212,7 +225,11 @@ public final class PhoneSkin {
         if (tex == null) return false;
 
         // 走 GuiUtil 而不是 g.blit：原版那条 blit 不开混合，半透明贴图会被当成不透明画
-        GuiUtil.drawTexture(g, tex.location(), x, y, w, h, tex.width(), tex.height());
+        if (tex.border() > 0) {
+            GuiUtil.drawNineSlice(g, tex.location(), x, y, w, h, tex.width(), tex.height(), tex.border());
+        } else {
+            GuiUtil.drawTexture(g, tex.location(), x, y, w, h, tex.width(), tex.height());
+        }
         return true;
     }
 
@@ -285,7 +302,16 @@ public final class PhoneSkin {
                 MCphone.LOGGER.warn("[MCphone] {} 不是有效的 PNG，忽略", loc);
                 return Optional.empty();
             }
-            return Optional.of(new SkinTexture(loc, size[0], size[1]));
+            int border = 0;
+            try {
+                int requested = res.get().metadata().getSection(SKIN_METADATA).orElse(0);
+                if (requested > 0 && requested <= (Math.min(size[0], size[1]) - 1) / 2) {
+                    border = requested;
+                }
+            } catch (Exception e) {
+                MCphone.LOGGER.warn("[MCphone] {} 的圆角元数据无效，使用整张拉伸: {}", loc, e.toString());
+            }
+            return Optional.of(new SkinTexture(loc, size[0], size[1], border));
         } catch (Exception e) {
             MCphone.LOGGER.warn("[MCphone] 读取贴图 {} 失败: {}", loc, e.toString());
             return Optional.empty();

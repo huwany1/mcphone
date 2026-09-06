@@ -93,6 +93,40 @@ public final class GuiUtil {
     }
 
     /**
+     * 九宫格拉伸：把贴图切成"四角 + 四边 + 中央"九块，四角按源图尺寸原样画，只有边和中央被拉伸。
+     *
+     * 整张拉伸对纯色、纵向渐变没问题，对带圆角的底图就不行了：宽气泡把圆角横着抻长，
+     * 窄气泡把它压扁，一屏里没有两个角是一样的。
+     *
+     * {@code border} 是源图四边各留多少像素不参与拉伸。目标区域比 2×border 还窄（或还矮）时
+     * 边角对半分，宁可把角挤扁，也不让左右（上下）两块重叠。
+     */
+    public static void drawNineSlice(GuiGraphics g, ResourceLocation tex,
+                                     int x, int y, int w, int h, int texW, int texH, int border) {
+        if (w <= 0 || h <= 0) return;
+        if (border <= 0 || border > (Math.min(texW, texH) - 1) / 2) {
+            drawTexture(g, tex, x, y, w, h, texW, texH);
+            return;
+        }
+        int bx = Math.min(border, w / 2);
+        int by = Math.min(border, h / 2);
+        int[] dx = {x, x + bx, x + w - bx, x + w};
+        int[] dy = {y, y + by, y + h - by, y + h};
+        int[] sx = {0, border, texW - border, texW};
+        int[] sy = {0, border, texH - border, texH};
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                int dw = dx[col + 1] - dx[col];
+                int dh = dy[row + 1] - dy[row];
+                if (dw > 0 && dh > 0) {
+                    drawTexture(g, tex, dx[col], dy[row], dw, dh,
+                            sx[col], sy[row], sx[col + 1] - sx[col], sy[row + 1] - sy[row], texW, texH);
+                }
+            }
+        }
+    }
+
+    /**
      * 把一张贴图等比缩放、居中画进给定的方框。
      *
      * 相册的缩略图格子、单张查看的大图、美西螈里的图片气泡都要这么画：外来的图什么比例
