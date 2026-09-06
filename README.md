@@ -294,6 +294,9 @@ NeoForge 的注册阶段只要收到任何一个模组抛的异常，就会把�
 
 ## 给附属模组作者
 
+📖 **完整的接口文档在 [`docs/addon-api.md`](docs/addon-api.md)** —— 每个接口的每个方法、
+坐标与线程的约定、几个非踩不可的坑、版本兼容承诺。下面只是一段概览。
+
 App 系统通过 SPI 开放，你的模组不需要被 MCphone 感知也能往手机里装 App。内建 App 走的是同一套机制，没有走后门。
 
 **注册一个 App**：实现 `com.november.mcphone.api.client.app.IPhoneApp`，在 `META-INF/services/com.november.mcphone.api.client.app.IPhoneApp` 中登记实现类，App 即自动出现。
@@ -317,7 +320,9 @@ public List<RequiredMod> requiredMods() {
 
 判断条件说不清时（比如还要看对方的版本）才去覆盖 `isAvailable()`；它的默认实现就是按 `requiredMods()` 回答的。覆盖了它而不声明前置，「联动App」页就会与真实可用性对不上。
 
-**换浏览器后端**：`com.november.mcphone.feature.browser.client` 下的 `IBrowser` / `IBrowserBackend` 是一层不含 MCEF、JCEF 类型的抽象，画面以 GL 纹理 id 交出来。想换成别的实现，在 MCphone 装上默认后端之前调 `BrowserBackends.set()` 即可；已经有人接管时再 set 会被拒绝并告警，不静默顶掉。
+**画在手机屏幕里**：覆盖 `IPhoneApp.openPage()` 返回一个 `IPhonePage`，你的界面就长在手机里——状态栏、导航栏、壁纸、返回键都由 MCphone 管。详见接口文档第 2 节。
+
+**换浏览器后端**：`com.november.mcphone.feature.browser.client` 下的 `IBrowser` / `IBrowserBackend` 是一层不含 MCEF、JCEF 类型的抽象，画面以 GL 纹理 id 交出来。想换成别的实现，在 MCphone 装上默认后端之前调 `BrowserBackends.set()` 即可；已经有人接管时再 set 会被拒绝并告警，不静默顶掉。注意它还在 `feature` 下，**不受 api 包那五条兼容承诺保护**，理由见接口文档第 7 节。
 
 ---
 

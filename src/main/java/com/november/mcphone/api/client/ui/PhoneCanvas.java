@@ -94,7 +94,12 @@ public final class PhoneCanvas {
     /** 手机当前的配色。照着画，你的页面才像手机里的东西而不是外来户 */
     public PhoneStyle style() { return style; }
 
-    /** 鼠标在不在这个矩形里。省得每个页面各写一遍命中判定 */
+    /**
+     * 鼠标在不在这个矩形里。省得每个页面各写一遍命中判定。
+     *
+     * 矩形用的是与 {@link #x()} 同一套【屏幕绝对坐标】，不是相对内容区的偏移——
+     * 参数名里那个 r 是历史遗留，别照着它传相对坐标。
+     */
     public boolean hovered(int rx, int ry, int rw, int rh) {
         return mouseX >= rx && mouseX < rx + rw && mouseY >= ry && mouseY < ry + rh;
     }
