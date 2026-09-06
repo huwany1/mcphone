@@ -179,6 +179,30 @@ public record RequiredMod(String modId, String displayName) {}
 **每帧、每个图标各问一次。** 只能读现成的值。要现拉数据就自己按时间间隔限流，
 别在这里发网络包或读文件。
 
+### 动态图标
+
+`renderIcon` **每帧都被调用**，所以图标可以是动的——覆盖它，自己按时间挑一帧画出来就行：
+
+```java
+private static final int FRAMES = 8;
+private static final int FRAME_MS = 100;
+
+@Override
+public void renderIcon(GuiGraphics g, int x, int y, int size, float partialTick) {
+    int frame = (int) ((System.currentTimeMillis() / FRAME_MS) % FRAMES);   // 一张横向雪碧图
+    RenderSystem.enableBlend();
+    RenderSystem.defaultBlendFunc();
+    g.blit(SHEET, x, y, size, size, frame * size, 0, size, size, size * FRAMES, size);
+    RenderSystem.disableBlend();
+}
+```
+
+`partialTick` 是本帧的插值系数，做平滑动画（旋转、缩放这类不按整 tick 跳的）时用得上。
+按墙上时间挑帧则不需要它——像上面这样。
+
+**换肤那条路做不了动画**：皮肤贴图是一张独立纹理，不进图集，原版 `.mcmeta` 那套动画机制
+对它不生效。给 `app/xxx.png` 配一个 `.mcmeta` 不会有任何反应。要动就得写代码。
+
 ### 覆盖 `renderIcon()` 的话，记得自己开混合
 
 默认实现替你开了。你要是自己画，**别直接 `g.blit(ResourceLocation, ...)`**：原版那条
