@@ -56,7 +56,10 @@ public final class CameraHandler {
                 mc.font,
                 mc.getWindow().getGuiScaledWidth(),
                 mc.getWindow().getGuiScaledHeight(),
-                System.currentTimeMillis());
+                System.currentTimeMillis(),
+                // 模糊后处理要它来插值。false ＝ 不算暂停时的那一份，相机模式下
+                // 游戏本来就没暂停，两者一样，取跟着游戏时间的那个更合语义
+                event.getPartialTick().getGameTimeDeltaPartialTick(false));
     }
 
     /** 安全网：打开任意界面就退出相机模式，否则玩家会卡在没有 HUD 的状态里 */

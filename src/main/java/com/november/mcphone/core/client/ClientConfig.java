@@ -1,6 +1,7 @@
 package com.november.mcphone.core.client;
 
 import com.november.mcphone.MCphone;
+import com.november.mcphone.feature.camera.client.CameraFlash;
 import com.november.mcphone.feature.music.PlayMode;
 import com.november.mcphone.feature.music.client.MusicController;
 import com.november.mcphone.feature.music.client.playback.LocalPlayback;
@@ -50,6 +51,9 @@ public final class ClientConfig {
     /** 每个 App 的快捷键，一条写成 {@code <appId>=<键名>}。解析见 {@link AppHotkeys} */
     public static final ModConfigSpec.ConfigValue<List<? extends String>> APP_HOTKEYS;
 
+    /** 拍照那一下用模糊代替满屏白闪 */
+    public static final ModConfigSpec.BooleanValue CAMERA_SOFT_FLASH;
+
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
@@ -93,6 +97,16 @@ public final class ClientConfig {
                         () -> "mcphone:chat=key.keyboard.k",
                         o -> o instanceof String);
 
+        CAMERA_SOFT_FLASH = builder
+                .comment("拍照时用『模糊一下』代替满屏白闪。",
+                        "false 是默认，与不改这一项时完全一致；",
+                        "夜里或在暗处拍照时白闪会把屏幕顶到全白，介意的话开这个。",
+                        "在游戏里改：设置 → App 管理器 → 相机 → 快门闪光。",
+                        "Replace the white shutter flash with a short blur.",
+                        "In-game: Settings -> App Manager -> Camera -> Shutter flash.")
+                .translation("mcphone.config.camera_soft_flash")
+                .define("cameraSoftFlash", false);
+
         SPEC = builder.build();
     }
 
@@ -125,6 +139,9 @@ public final class ClientConfig {
 
         // 快捷键同理：按下时要在一帧之内答出"这个键是哪个 App"，不能去问配置
         AppHotkeys.load(APP_HOTKEYS.get());
+
+        // 快门闪光也一样：闪光那 220 毫秒里每帧都要问一次用哪种
+        CameraFlash.setSoft(CAMERA_SOFT_FLASH.get());
     }
 
     //  手机界面 → 配置
@@ -173,6 +190,17 @@ public final class ClientConfig {
     public static void saveAppHotkeys(List<String> entries) {
         if (!SPEC.isLoaded()) return;
         APP_HOTKEYS.set(entries);
+        SPEC.save();
+    }
+
+    /**
+     * 玩家在 App 管理器的相机那一页上换了快门闪光。
+     *
+     * 与上面几项同一套路数：{@link CameraFlash} 那边已经用上新值了，这里只负责落盘。
+     */
+    public static void saveCameraSoftFlash(boolean soft) {
+        if (!SPEC.isLoaded()) return;
+        CAMERA_SOFT_FLASH.set(soft);
         SPEC.save();
     }
 

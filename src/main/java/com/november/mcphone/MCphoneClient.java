@@ -9,6 +9,7 @@ import com.november.mcphone.core.client.PhoneScreenRegistry;
 import com.november.mcphone.core.client.PhoneSession;
 import com.november.mcphone.core.client.PhoneSkin;
 import com.november.mcphone.core.menu.ModMenus;
+import com.november.mcphone.feature.camera.client.CameraFlash;
 import com.november.mcphone.feature.camera.client.CameraHandler;
 import com.november.mcphone.feature.chat.client.ChatImageCache;
 import com.november.mcphone.feature.chat.client.ChatImageSender;
@@ -113,11 +114,18 @@ public class MCphoneClient {
         ChatClientCache.setImageListener(ChatImageCache::accept);
     }
 
-    /** 资源重载时清空换肤贴图的探测缓存，否则 F3+T 或换资源包后画的还是旧贴图，且不报错。 */
+    /**
+     * 资源重载时清空换肤贴图的探测缓存，否则 F3+T 或换资源包后画的还是旧贴图，且不报错。
+     *
+     * 相机那条模糊后处理链一并扔掉：着色器程序跟着资源走，重载之后旧的那份要么黑屏
+     * 要么直接崩，而且同样不报错。下次拍照时会重新建一条。
+     */
     @SubscribeEvent
     static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener(
-                (ResourceManagerReloadListener) manager -> PhoneSkin.clearCache());
+        event.registerReloadListener((ResourceManagerReloadListener) manager -> {
+            PhoneSkin.clearCache();
+            CameraFlash.dispose();
+        });
     }
 
     /** 把菜单类型与界面类绑定。不注册的话，服务端 openMenu 后客户端什么都不显示。 */

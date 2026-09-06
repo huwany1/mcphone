@@ -5,6 +5,7 @@ import com.november.mcphone.MCphone;
 import com.november.mcphone.api.client.app.IPhoneApp;
 import com.november.mcphone.api.client.app.RequiredMod;
 import com.november.mcphone.core.client.AppHotkeys;
+import com.november.mcphone.core.client.AppOptions;
 import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.GuiUtil;
 import com.november.mcphone.core.client.PhoneScreenRegistry;
@@ -69,6 +70,11 @@ public final class AppManagerDetail {
     /** 快捷键那一行的位置与悬停，同样是渲染时算、点击时用 */
     private int keyRowY;
     private boolean keyRowHovered;
+
+    /** 这个 App 自己的开关（相机的快门闪光就是一个）。鼠标停在第几行，-1 表示没有 */
+    private List<AppOptions.Toggle> options = List.of();
+    private int optionsTop;
+    private int hoveredOption = -1;
 
     /**
      * 正在等玩家按一个键。
@@ -169,8 +175,11 @@ public final class AppManagerDetail {
         y += 4;
 
         //  正文：描述 + 由谁提供 + 前置/联动 
-        // 操作区的位置先扣出来，正文只能画到它上面为止。两行操作 + 系统 App 那句说明
-        final int bodyBottom = bottom - BUTTON_H * 2 - font.lineHeight - 10;
+        // 操作区的位置先扣出来，正文只能画到它上面为止。行数按这个 App 有几个开关算：
+        // 卸载一行、快捷键一行，再加它自己的那几行，最后是系统 App 那句说明
+        options = AppOptions.of(app.getId());
+        final int actionRows = 2 + options.size();
+        final int bodyBottom = bottom - BUTTON_H * actionRows - font.lineHeight - 8 - actionRows * 2;
         final int bodyTop = y;
 
         scrollPx = Math.clamp(scrollPx, 0, maxScroll);
@@ -201,9 +210,10 @@ public final class AppManagerDetail {
 
         maxScroll = Math.max(0, (y + scrollPx) - bodyBottom);
 
-        //  操作区：快捷键一行，卸载一行 
+        //  操作区：一行一个，自下而上排 
         renderUninstallButton(g, font, x, bottom, w, mouseX, mouseY);
         renderHotkeyRow(g, font, x, w, mouseX, mouseY);
+        renderOptionRows(g, font, x, w, mouseX, mouseY);
     }
 
     /** 滚轮翻正文。头部与底下那两行操作不跟着滚：它们得一直够得着 */
@@ -234,6 +244,50 @@ public final class AppManagerDetail {
         g.drawString(font, mark, x + w - font.width(mark), y,
                 loaded ? FontPalette.confirm() : FontPalette.danger(), false);
         return y + font.lineHeight + 1;
+    }
+
+    /**
+     * 这个 App 自己的开关，一个一行，排在快捷键那一行上面。
+     *
+     * 谁有开关由各功能自己登记（见 {@link AppOptions}），这一页不认识任何具体的开关——
+     * 相机的闪光、以后别的什么，对这里都只是"一行字 + 右边两个字"。
+     */
+    private void renderOptionRows(GuiGraphics g, Font font, int x, int w, int mouseX, int mouseY) {
+        hoveredOption = -1;
+        if (options.isEmpty()) return;
+
+        optionsTop = keyRowY - (BUTTON_H + 2) * options.size();
+
+        for (int i = 0; i < options.size(); i++) {
+            AppOptions.Toggle option = options.get(i);
+            int y = optionsTop + i * (BUTTON_H + 2);
+
+            if (GuiUtil.hit(mouseX, mouseY, x, y, w, BUTTON_H)) {
+                hoveredOption = i;
+                g.fill(x, y, x + w, y + BUTTON_H, PhoneTheme.COLOR_ROW_HOVER);
+            }
+
+            int textY = y + (BUTTON_H - font.lineHeight) / 2;
+
+            // 读一个开关的当前值同样要兜住：getter 抛了不能把整页带走
+            boolean on;
+            String value;
+            try {
+                on = option.value();
+                value = Component.translatable(option.valueKey()).getString();
+            } catch (Throwable t) {
+                on = false;
+                value = "?";
+            }
+
+            int valueW = font.width(value);
+            g.drawString(font, value, x + w - valueW - 2, textY,
+                    on ? FontPalette.confirm() : FontPalette.dim(), false);
+
+            String label = Component.translatable(option.labelKey()).getString();
+            g.drawString(font, GuiUtil.truncate(font, label, w - valueW - 8),
+                    x + 2, textY, FontPalette.body(), false);
+        }
     }
 
     /**
@@ -422,6 +476,21 @@ public final class AppManagerDetail {
 
     public boolean mouseClicked(double mx, double my, int button) {
         if (button != 0 || app == null) return true;
+
+        // 开关那几行：点一下就翻面，没有第二步——翻错了再点一次就回去了，
+        // 与卸载那种"做了就回不来"的事不同
+        if (hoveredOption >= 0 && hoveredOption < options.size()) {
+            AppOptions.Toggle option = options.get(hoveredOption);
+            try {
+                option.flip();
+            } catch (Throwable t) {
+                MCphone.LOGGER.warn("[MCphone] App 开关 {} 翻面时抛了: {}", option.labelKey(), t.toString());
+            }
+            uninstallArmed = false;
+            capturingKey = false;
+            pendingForce = null;
+            return true;
+        }
 
         // 快捷键那一行：点一下开始等键，等键时再点一下就是算了
         if (keyRowHovered) {
