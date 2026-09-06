@@ -158,7 +158,9 @@ public final class CalculatorApp implements IPhoneApp {
 不必为快捷键补一条分支。
 
 绑定存在玩家自己的客户端配置里（`config/mcphone-client.toml` 的 `appHotkeys`），
-一个键只能属于一个 App；已经被原版或别的模组占用的键会在绑定时被拦下。
+支持 Ctrl / Shift / Alt 的组合键，一个组合只能属于一个 App。已经被别的 App 或别的
+键位占着时，界面会先说被谁占了，玩家再按一次同一个组合就照绑——**冲突不拦死**，
+所以别假设你的 App 那个键一定是独占的。
 
 ### `requiredMods()` / `companionMods()` / `isAvailable()` —— 这里有个坑
 

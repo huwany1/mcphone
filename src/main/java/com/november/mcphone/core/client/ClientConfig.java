@@ -75,12 +75,16 @@ public final class ClientConfig {
                 .defineInRange("musicVolume", 100, 0, 100);
 
         APP_HOTKEYS = builder
-                .comment("每个 App 的快捷键，一条一个 App，写成 <App id>=<键名>。",
-                        "键名用原版那套写法（options.txt 里也是这个），例如 key.keyboard.k。",
+                .comment("每个 App 的快捷键，一条一个 App，写成 <App id>=<键>。",
+                        "键名用原版那套写法（options.txt 里也是这个），例如 key.keyboard.k；",
+                        "组合键把修饰键写在前面并用加号连起来，可以叠：",
+                        "  mcphone:chat=CONTROL+key.keyboard.k",
+                        "  mcphone:notes=CONTROL+SHIFT+key.keyboard.n",
+                        "修饰键只认 CONTROL / SHIFT / ALT 三个（Mac 上 CONTROL 就是 Command）。",
                         "正常不用手改这里：设置 → App 管理器 → 点开某个 App → 快捷键。",
-                        "Per-app hotkeys, one entry per app, written as <app id>=<key name>",
-                        "(vanilla key names, e.g. key.keyboard.k). Normally set in-game via",
-                        "Settings -> App Manager -> pick an app -> Hotkey.")
+                        "Per-app hotkeys, one entry per app, written as <app id>=<key>.",
+                        "Vanilla key names (e.g. key.keyboard.k); prefix CONTROL/SHIFT/ALT with",
+                        "'+' for combos. Normally set in-game via Settings -> App Manager.")
                 .translation("mcphone.config.app_hotkeys")
                 // 元素校验只看"是不是字符串"：认不出来的条目由 AppHotkeys.load 逐条丢掉
                 // 并留日志。在这里较真的话，一条手改坏了的快捷键会让 NightConfig 把整个

@@ -6,10 +6,11 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.settings.KeyModifier;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 按下某个 App 的快捷键 —— 开机，并且直接进那个 App。
+ * 按下某个 App 的快捷键 —— 开机，并且直接进那个 App。支持 Ctrl / Shift / Alt 的组合。
  *
  * 绑定表在 {@link AppHotkeys}，界面在「设置 → App 管理器 → 某个 App」。
  *
@@ -21,6 +22,10 @@ import org.lwjgl.glfw.GLFW;
  * 更短的一下就会整个丢掉——按得快正是快捷键的常态。所以听按下事件本身。
  *
  * 只认 GLFW_PRESS：REPEAT 是按住不放时系统补发的，那会变成一直重开手机。
+ *
+ * 组合键要【完全一致】才算数：绑了 Ctrl+K 的人按 K 不会开，按 Ctrl+Shift+K 也不会。
+ * 宽松匹配（"按住的修饰键含着绑定的那几个就算"）会让 Ctrl+K 顺带响应 Ctrl+Shift+K，
+ * 于是两个 App 分别绑这两个组合时，后者永远会连着前者一起触发。
  *
  * 界面开着时不响应
  *
@@ -43,7 +48,15 @@ public final class AppHotkeyHandler {
         // 与原版记按键同一套：有键位符号的用 KEYSYM，没有的退回扫描码
         InputConstants.Key key = InputConstants.getKey(event.getKey(), event.getScanCode());
 
-        ResourceLocation appId = AppHotkeys.appFor(key);
+        // Ctrl / Shift / Alt 自己按下去不算数：组合键要等主键那一下才成立。
+        // 不挡的话，绑了 Ctrl+K 的人光按 Ctrl 就会被当成"主键是 Ctrl"来查一遍
+        if (KeyModifier.isKeyCodeModifier(key)) return;
+
+        // 修饰键取此刻真的按住的那几个，不用事件里的 mods 位：Mac 上 Command 要
+        // 算成 Ctrl，那层换算在 KeyModifier 里，位掩码自己看不出来
+        AppHotkeys.Binding pressed = AppHotkeys.Binding.of(key, AppHotkeys.activeModifiers());
+
+        ResourceLocation appId = AppHotkeys.appFor(pressed);
         if (appId == null) return;
 
         // 卸载了就当没绑：绑定按机器存、安装状态按存档存，同一台电脑换个存档
@@ -59,22 +72,22 @@ public final class AppHotkeyHandler {
 
         if (mc.screen instanceof PhoneScreen phone) phone.launchApp(app);
 
-        drainConflicting(key);
+        drainConflicting(pressed);
     }
 
     /**
      * 这个键要是同时还挂着一条 KeyMapping，把它这一下攒的点击倒掉。
      *
-     * 绑定界面会拦住"这个键原版已经在用"（见 AppManagerDetail.captureKey），所以正常
-     * 走不到这里。走得到的是手改配置那条路——那份配置是公开可编辑的，注释里还写了格式。
+     * 冲突现在是【可以强制绑上】的（绑定界面会先说被谁占了，玩家再按一次就照绑），
+     * 所以这条路是常态而不是意外；手改配置那条路也在这儿汇合。
      *
      * 不倒的话会变成这样：按 E，我们开了手机，原版那一下 click 排在队里没人取（原版
      * 取它的地方要求当前没有界面），等玩家关掉手机，背包【补开一次】。玩家会觉得是
      * 手机把背包键弄坏了，而且第二次按才对——这种时序错位最难查。
      */
-    private static void drainConflicting(InputConstants.Key key) {
-        KeyMapping clash = AppHotkeys.conflictingMapping(key);
-        if (clash == null) return;
-        while (clash.consumeClick()) { /* 倒空 */ }
+    private static void drainConflicting(AppHotkeys.Binding binding) {
+        for (KeyMapping clash : AppHotkeys.conflictingMappings(binding)) {
+            while (clash.consumeClick()) { /* 倒空 */ }
+        }
     }
 }

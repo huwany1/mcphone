@@ -15,6 +15,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.client.settings.KeyModifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
@@ -40,7 +41,8 @@ import java.util.function.Supplier;
  * 是灰的，并写明为什么——不写的话玩家会以为是坏了。
  *
  * 快捷键这一行是【每个 App 各绑各的】，默认未指定：点一下开始等键，按哪个是哪个，
- * ESC 清除。绑定表与"为什么不做成 KeyMapping"见
+ * 按住 Ctrl / Shift / Alt 再按就是组合键，ESC 清除。撞了车不拦死——先说被谁占了，
+ * 再按一次同一个组合就照绑。绑定表与"为什么不做成 KeyMapping"见
  * {@link com.november.mcphone.core.client.AppHotkeys}。
  *
  * 读第三方 App 的元数据一律兜住
@@ -77,12 +79,16 @@ public final class AppManagerDetail {
      */
     private boolean capturingKey;
 
-    /** 上一下为什么没绑上。短暂显示在那一行上，到点自己消失 */
-    private String keyNotice;
-    private long keyNoticeUntilMs;
+    /**
+     * 撞了车、等玩家再按一次确认的那个组合。
+     *
+     * 冲突不拦死：说清楚被谁占了，玩家坚持的话照绑。与卸载、删照片同一条规矩——
+     * 有代价的事要按两次，但第二次一定做得成。
+     */
+    private AppHotkeys.Binding pendingForce;
 
-    /** 提示停留多久。够读完一行短句，又不至于挡着下一次尝试 */
-    private static final long NOTICE_MS = 2500L;
+    /** 占着 {@link #pendingForce} 的是谁，画在那一行右边 */
+    private String pendingOwner;
 
     /** 卸载完了，请求退回列表页，等 PhoneScreen 来取 */
     private boolean backRequest;
@@ -107,7 +113,7 @@ public final class AppManagerDetail {
         this.scrollPx = 0;
         this.maxScroll = 0;
         this.capturingKey = false;
-        this.keyNotice = null;
+        this.pendingForce = null;
     }
 
     public void close() {
@@ -115,7 +121,7 @@ public final class AppManagerDetail {
         this.uninstallArmed = false;
         // 离开这一页必须收掉：不收的话 ESC 会一直被当成"清除绑定"吃掉
         this.capturingKey = false;
-        this.keyNotice = null;
+        this.pendingForce = null;
     }
 
     public boolean consumeBackRequest() {
@@ -231,7 +237,8 @@ public final class AppManagerDetail {
     }
 
     /**
-     * 快捷键那一行：左边写"快捷键"，右边写绑的是哪个键、或者"未指定"。
+     * 快捷键那一行。三种样子：平时是「快捷键 · Ctrl + K」（没绑就是"未指定"），
+     * 等键时是「按一个键… · Esc 清除」，撞了车是「再按一次强制 · ⚠ 谁占的」。
      *
      * 位置贴着卸载键上方，所以要在它之后画（btnY 是那边算出来的）。它和卸载键一样
      * 不跟着正文滚——绑键是这一页的操作，不是它的内容。
@@ -246,36 +253,52 @@ public final class AppManagerDetail {
 
         final int textY = keyRowY + (BUTTON_H - font.lineHeight) / 2;
 
-        // 刚才那一下没绑上的话，先把理由说完再说别的
-        if (keyNotice != null && System.currentTimeMillis() < keyNoticeUntilMs) {
-            g.drawString(font, GuiUtil.truncate(font, keyNotice, w - 4),
-                    x + 2, textY, FontPalette.danger(), false);
-            return;
-        }
-        keyNotice = null;
-
-        String left = Component.translatable(capturingKey
-                ? "mcphone.gui.hotkey_press" : "mcphone.gui.hotkey").getString();
-
+        String left;
+        int leftColor;
         String right;
         int rightColor;
-        if (capturingKey) {
+
+        if (pendingForce != null) {
+            // 撞了车：左边写怎么坚持，右边写被谁占了。两截都短，108 像素里放得下
+            left = Component.translatable("mcphone.gui.hotkey_force").getString();
+            leftColor = FontPalette.armed();
+            right = Component.translatable("mcphone.gui.hotkey_conflict", pendingOwner).getString();
+            rightColor = FontPalette.danger();
+        } else if (capturingKey) {
+            left = Component.translatable("mcphone.gui.hotkey_press").getString();
+            leftColor = FontPalette.armed();
             // 等键的时候右边写 ESC 干什么用：这一页上它是"清除"，不是"关机"，
             // 不写的话玩家只会按 ESC 想退出，然后发现绑定没了
             right = Component.translatable("mcphone.gui.hotkey_esc_clears").getString();
             rightColor = FontPalette.dim();
         } else {
-            InputConstants.Key bound = AppHotkeys.get(app.getId());
-            right = bound == null
-                    ? Component.translatable("mcphone.gui.hotkey_none").getString()
-                    : bound.getDisplayName().getString();
-            rightColor = bound == null ? FontPalette.dim() : FontPalette.confirm();
+            left = Component.translatable("mcphone.gui.hotkey").getString();
+            leftColor = FontPalette.body();
+
+            AppHotkeys.Binding bound = AppHotkeys.get(app.getId());
+            if (bound == null) {
+                right = Component.translatable("mcphone.gui.hotkey_none").getString();
+                rightColor = FontPalette.dim();
+            } else if (AppHotkeys.conflictingMapping(bound) != null) {
+                // 绑是绑上了，但它和别处的键位重着。每帧问一次不贵（只有这一页会问），
+                // 而且【必须现问】：玩家随时可能在原版界面里把某个键改成这个组合
+                right = Component.translatable("mcphone.gui.hotkey_conflict",
+                        bound.displayName().getString()).getString();
+                rightColor = FontPalette.notice();
+            } else {
+                right = bound.displayName().getString();
+                rightColor = FontPalette.confirm();
+            }
         }
 
+        // 右边先按"左边至少留得下"截一刀，再按剩下的宽度截左边。组合键名与模组名
+        // 都可能很长，不截的话两截会叠在一起
+        int leftMin = Math.min(font.width(left), w / 2);
+        right = GuiUtil.truncate(font, right, w - leftMin - 8);
         int rightW = font.width(right);
         g.drawString(font, right, x + w - rightW - 2, textY, rightColor, false);
         g.drawString(font, GuiUtil.truncate(font, left, w - rightW - 8),
-                x + 2, textY, capturingKey ? FontPalette.armed() : FontPalette.body(), false);
+                x + 2, textY, leftColor, false);
     }
 
     /** 正在等玩家按键吗。PhoneScreen 据此把按键抢在 ESC 关机之前送进来 */
@@ -284,57 +307,80 @@ public final class AppManagerDetail {
     }
 
     /**
-     * 收玩家按的那一个键。
+     * 收玩家按的那一下。
      *
      * ESC 是清除，与原版「按键设置」里的意思一致——那儿也是按 ESC 解绑，玩家不用
-     * 学第二套。别的键先过两道冲突：
+     * 学第二套。
      *
-     * 一是别的 App 已经绑了它。这种必须拦：两个 App 抢同一个键，按下去谁开都不对，
-     * 而玩家在这一页上看不到别的 App 绑了什么。
+     * 组合键怎么按出来：Ctrl / Shift / Alt 自己按下去【不结束等键】，只有主键那一下
+     * 才算数，此刻按住的修饰键一并记下。所以"按住 Ctrl 再按 K"就是 Ctrl+K，和玩家
+     * 在别处按组合键的手感一样。
      *
-     * 二是原版或别的模组的键位已经占了它。这种同样拦——我们这套快捷键不出现在原版的
-     * 「按键设置」界面里（理由见 AppHotkeys），放行的话玩家会得到一个"按 E 同时开背包
-     * 和手机"的局面，而且他没有任何地方能查出来是谁干的。想用那个键，先去原版界面里
-     * 把占着的那条改掉。
+     * 撞了车不拦死，改成【再按一次就照绑】：
+     *
+     * 一是别的 App 已经绑了它——两个 App 抢同一个键，按下去只有一个开得成，所以要
+     * 先说一声；坚持的话后来的赢，前一个自动松开（AppHotkeys.bind 会摘掉旧的那条）。
+     * 但占着它的那个 App 要是【没装】就直接抢：它不在管理器的列表里，玩家看不到、
+     * 也解不掉那条绑定，为它拦一道只会变成一个谁也解释不了的"这个键不能用"。
+     *
+     * 二是原版或别的模组的键位占了它。这个更要说：我们这套快捷键不出现在原版的
+     * 「按键设置」界面里，玩家日后查不出"按 E 怎么同时开背包和手机"是谁干的。
+     * 说完还是他说了算——真按下去时那条 KeyMapping 攒的点击会被倒掉，见
+     * {@link com.november.mcphone.core.client.AppHotkeyHandler}。
      */
     public void captureKey(int keyCode, int scanCode) {
-        capturingKey = false;
-        if (app == null) return;
+        if (app == null) {
+            capturingKey = false;
+            return;
+        }
 
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             AppHotkeys.clear(app.getId());
+            capturingKey = false;
+            pendingForce = null;
             return;
         }
 
         InputConstants.Key key = InputConstants.getKey(keyCode, scanCode);
+
+        // 修饰键本身不成一条绑定：还按着呢，等主键
+        if (KeyModifier.isKeyCodeModifier(key)) return;
         if (key.equals(InputConstants.UNKNOWN)) return;
 
-        // 占着这个键的如果是个【没装】的 App，就直接抢过来：它不在管理器的列表里，
-        // 玩家看不到、也解不掉那条绑定，拦下来只会变成一个谁也解释不了的"这个键不能用"。
-        // AppHotkeys.bind 本来就会把旧的那条摘掉
-        ResourceLocation taken = AppHotkeys.appFor(key);
+        AppHotkeys.Binding binding = AppHotkeys.Binding.of(key, AppHotkeys.activeModifiers());
+
+        // 上膛的那个组合又按了一次＝他知道自己在做什么
+        if (binding.equals(pendingForce)) {
+            AppHotkeys.bind(app.getId(), binding);
+            capturingKey = false;
+            pendingForce = null;
+            return;
+        }
+
+        String owner = ownerOf(binding);
+        if (owner != null) {
+            pendingForce = binding;
+            pendingOwner = owner;
+            return;                 // 继续等键：可以再按一次坚持，也可以换一个组合
+        }
+
+        AppHotkeys.bind(app.getId(), binding);
+        capturingKey = false;
+        pendingForce = null;
+    }
+
+    /** 这个组合现在归谁，没人占就是 null */
+    private String ownerOf(AppHotkeys.Binding binding) {
+        ResourceLocation taken = AppHotkeys.appFor(binding);
         if (taken != null && !taken.equals(app.getId()) && PhoneScreenRegistry.isInstalled(taken)) {
-            notice("mcphone.gui.hotkey_taken_app", takenAppName(taken));
-            return;
+            return takenAppName(taken);
         }
 
-        KeyMapping conflict = AppHotkeys.conflictingMapping(key);
-        if (conflict != null) {
-            notice("mcphone.gui.hotkey_taken_key",
-                    Component.translatable(conflict.getName()).getString());
-            return;
-        }
-
-        AppHotkeys.bind(app.getId(), key);
+        KeyMapping conflict = AppHotkeys.conflictingMapping(binding);
+        return conflict == null ? null : Component.translatable(conflict.getName()).getString();
     }
 
-    /** 那一行上短暂显示一句话，到点自己消失 */
-    private void notice(String key, Object... args) {
-        keyNotice = Component.translatable(key, args).getString();
-        keyNoticeUntilMs = System.currentTimeMillis() + NOTICE_MS;
-    }
-
-    /** 占着这个键的那个 App 叫什么。它可能是个坏附属，所以照样兜住 */
+    /** 占着这个组合的那个 App 叫什么。它可能是个坏附属，所以照样兜住 */
     private static String takenAppName(ResourceLocation id) {
         IPhoneApp other = PhoneScreenRegistry.getApp(id);
         if (other == null) return id.toString();
@@ -381,7 +427,7 @@ public final class AppManagerDetail {
         if (keyRowHovered) {
             capturingKey = !capturingKey;
             uninstallArmed = false;
-            keyNotice = null;
+            pendingForce = null;
             return true;
         }
 
@@ -390,6 +436,7 @@ public final class AppManagerDetail {
             // 与相册的删除键同一条：走开就等于反悔
             uninstallArmed = false;
             capturingKey = false;
+            pendingForce = null;
             return true;
         }
         if (app.isSystemApp()) return true;
