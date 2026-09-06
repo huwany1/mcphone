@@ -154,7 +154,10 @@ public final class PhoneScreen extends Screen {
         if (this.mode == Mode.CHAT_STICKER_PICKER) chatStickerPicker.close();
         if (target == Mode.CHAT_STICKER_PICKER) chatStickerPicker.open();
 
-        if (target == Mode.WALLPAPER_PICKER) WallpaperStore.refresh();
+        if (target == Mode.WALLPAPER_PICKER) {
+            WallpaperStore.refresh();
+            wallpaperPicker.open();
+        }
 
         if (this.mode == Mode.NOTES) notesList.close();
         if (target == Mode.NOTES) notesList.open();

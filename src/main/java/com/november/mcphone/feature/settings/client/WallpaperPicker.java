@@ -4,6 +4,7 @@ import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.PhoneTheme;
 import com.november.mcphone.feature.settings.net.SetWallpaperPacket;
 import com.november.mcphone.core.client.GuiUtil;
+import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -27,15 +28,52 @@ public final class WallpaperPicker {
     private static final int PAD_Y = 2;
     private static final int COLS = 2;
 
-    private int hoveredIdx = -1;     // -2 = "默认"按钮, -1 = 无hover, 0..N = 壁纸索引
+    /** 标题与右上角那个键之间至少留的空隙 */
+    private static final int HEADER_GAP = 4;
+
+    /** 右上角那个键的点击判定往外放宽一点，字太小不好点 */
+    private static final int HIT_PAD = 2;
+
+    private int hoveredIdx = -1;     // -3 = "打开文件夹", -2 = "恢复默认", -1 = 无hover, 0..N = 壁纸索引
+
+    /**
+     * 点过「打开文件夹」之后开始盯着目录，每秒重扫一次。
+     *
+     * 不这么做的话，这个键只完成了一半：玩家点开文件夹、拖一张 PNG 进去、切回游戏——
+     * 而这一页只在【进来的时候】扫过一次，那张图要退出去再进来才认。他多半会以为没放成功。
+     *
+     * 只在点过之后才盯：那是玩家说出"我要往里放东西"的唯一时刻。没点过的人不该为此
+     * 每秒付一次目录列举。
+     */
+    private boolean watchingFolder;
+
+    private long lastScanMs;
+
+    /** 目录重扫的间隔。列一次目录的开销可以忽略，真正贵的加载只发生在有新文件时 */
+    private static final long RESCAN_INTERVAL_MS = 1000L;
 
     public WallpaperPicker() {}
+
+    /** 每次进入这一页时调，见 PhoneScreen 的 navigateTo */
+    public void open() {
+        hoveredIdx = -1;
+        watchingFolder = false;
+        lastScanMs = 0L;
+    }
 
     //  渲染
 
     public void render(GuiGraphics g, int phoneLeft, int phoneTop,
                        int screenW, int screenH, int statusH, int navH,
                        int mouseX, int mouseY, net.minecraft.client.gui.Font font) {
+
+        if (watchingFolder) {
+            long now = System.currentTimeMillis();
+            if (now - lastScanMs >= RESCAN_INTERVAL_MS) {
+                lastScanMs = now;
+                WallpaperStore.refresh();   // 增量的：没有新文件时它什么都不做
+            }
+        }
 
         List<WallpaperStore.WallpaperEntry> wallpapers = WallpaperStore.getWallpapers();
 
@@ -44,12 +82,31 @@ public final class WallpaperPicker {
         int contentBottom = phoneTop + screenH - navH;
         int contentW = screenW - PAD_X * 2;
 
-        // ---- 标题 ----
-        g.drawString(font, Component.translatable("mcphone.gui.wallpaper_title").getString(),
-                contentX, contentY, FontPalette.title(), true);
-        contentY += font.lineHeight + 4;
-
         int hovered = -1;
+
+        // ---- 标题行：左边标题，右边「打开文件夹」----
+        //
+        // 挂在标题行而不是自己占一行：这一页的网格【没有翻页】，放不下的壁纸就是永远
+        // 看不见。多占一行正好把网格从两行挤成一行，能选的壁纸从四张掉到两张——
+        // 为了一个快捷键把这一页的主功能砍掉一半，不划算。
+        //
+        // 挤不下时截的是标题：玩家正是点着「更换壁纸」那一行进来的，标题只是复述一遍；
+        // 而这个键是这一页唯一的新功能。中文两样都放得下，英文的标题会被截一截。
+        String open = Component.translatable("mcphone.gui.open_folder").getString();
+        int openW = font.width(open);
+        int openX = contentX + contentW - openW;
+        if (GuiUtil.hit(mouseX, mouseY, openX - HIT_PAD, contentY - HIT_PAD,
+                openW + HIT_PAD * 2, font.lineHeight + HIT_PAD * 2)) {
+            hovered = -3;
+        }
+        g.drawString(font, open, openX, contentY,
+                hovered == -3 ? FontPalette.title() : FontPalette.link(), false);
+
+        String title = GuiUtil.truncate(font,
+                Component.translatable("mcphone.gui.wallpaper_title").getString(),
+                openX - contentX - HEADER_GAP);
+        g.drawString(font, title, contentX, contentY, FontPalette.title(), true);
+        contentY += font.lineHeight + 4;
 
         // ---- "恢复默认" 按钮 ----
         int btnY = contentY;
@@ -154,6 +211,15 @@ public final class WallpaperPicker {
      */
     public boolean mouseClicked(int button) {
         if (button != 0) return false;
+
+        if (hoveredIdx == -3) {
+            // 交给系统自己的文件管理器，不弹任何 Java 的窗口——AWT 的选择器在 macOS 上
+            // 要与游戏抢主线程。开完【留在这一页】：玩家接下来要做的是拖一张图进去再回来，
+            // 把他踢回设置列表等于让他再点两下进来
+            Util.getPlatform().openPath(WallpaperStore.directory());
+            watchingFolder = true;
+            return false;
+        }
 
         if (hoveredIdx == -2) {
             // "恢复默认背景"
