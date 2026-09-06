@@ -213,11 +213,11 @@ public final class HomeGrid {
             int w = PhoneTheme.PHONE_WIDTH;
             int inX = Math.round((1f - slide) * dir * w);
 
-            g.enableScissor(phoneLeft, phoneTop + PhoneTheme.STATUS_BAR_HEIGHT,
+            GuiUtil.enableScissor(g, phoneLeft, phoneTop + PhoneTheme.STATUS_BAR_HEIGHT,
                     phoneLeft + w, dotsTop());
             renderPageIcons(g, ordered, slideFromPage, inX - dir * w, floatingIndex);
             renderPageIcons(g, ordered, homePage, inX, floatingIndex);
-            g.disableScissor();
+            GuiUtil.disableScissor(g);
         }
 
         renderPageDots(g, HomeLayout.pageCount(ordered.size(), pageSize));

@@ -187,7 +187,7 @@ public final class AppManagerDetail {
         y -= scrollPx;
 
         // 越界的部分交给 scissor 裁，不再"放不下就不画"——那样卸载键上方会凭空少几行
-        g.enableScissor(x, bodyTop, x + w, bodyBottom);
+        GuiUtil.enableScissor(g, x, bodyTop, x + w, bodyBottom);
 
         String desc = safe(app::getDescription, "");
         if (desc.isBlank()) desc = Component.translatable("mcphone.store.no_description").getString();
@@ -207,7 +207,7 @@ public final class AppManagerDetail {
             y = drawModLine(g, font, x, y, w, "mcphone.gui.app_companion", companion);
         }
 
-        g.disableScissor();
+        GuiUtil.disableScissor(g);
 
         maxScroll = Math.max(0, (y + scrollPx) - bodyBottom);
 

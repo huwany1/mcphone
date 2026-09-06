@@ -88,7 +88,7 @@ public final class AboutPage {
         y -= scrollPx;
 
         // 裁掉滚出去的部分，否则正文会画到状态栏和导航栏上
-        g.enableScissor(x, top, x + w, bottom);
+        GuiUtil.enableScissor(g, x, top, x + w, bottom);
 
         // ---- 名字与版本 ----
         g.drawString(font, "MCphone", x, y, FontPalette.title(), false);
@@ -135,7 +135,7 @@ public final class AboutPage {
                     ModList.get().isLoaded(mod.modId()));
         }
 
-        g.disableScissor();
+        GuiUtil.disableScissor(g);
 
         // 这一帧画到哪儿，就是内容有多高；下一帧的滚动上限按它来
         maxScroll = Math.max(0, (y + scrollPx) - bottom);

@@ -7,6 +7,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -124,6 +126,69 @@ public final class GuiUtil {
                 }
             }
         }
+    }
+
+    /**
+     * 开裁剪 —— 收的是【手机本地坐标】，会按当前 pose 换算成窗口坐标。
+     *
+     * 为什么必须包一层
+     *
+     * 原版的 {@code GuiGraphics.enableScissor} 收窗口坐标，而且【完全不看 PoseStack】：
+     * 它把矩形原样压进 scissorStack，{@code applyScissor} 只按 {@code window.getGuiScale()}
+     * 换算一次。而 1.9.3 起整个手机是套在一层 pose 缩放里画的（{@code PhoneScreen.render}
+     * 绕手机中心 scale，倍数是开机动画 × {@link PhoneScale}）——各页面照旧按 120×200 的本地
+     * 坐标算位置，直接把这些数交给原版那句，裁剪框就停在没缩放时的位置和大小上。
+     *
+     * 症状是【文字被切掉】：界面大小调到 150%，聊天记录、App 详情、关于页的正文都会缺一块，
+     * 而且缺的位置随缩放变。100% 时一切正常，所以很容易被当成"某一页写错了"。
+     *
+     * 为什么从 pose 里取，而不是把 PhoneScale 的倍数传进来
+     *
+     * 因为缩放不止一层——开机动画那一层是另乘上去的，将来再套一层（比如横屏、画中画）
+     * 这里一行都不用改。矩阵里的那个数才是"这一帧真正画到哪儿"的唯一真相。
+     *
+     * 只取两个角够用：手机这一层只有平移和等比缩放，没有旋转。真转起来的话包围盒得取
+     * 四个角，那时候再说。
+     */
+    public static void enableScissor(GuiGraphics g, int x1, int y1, int x2, int y2) {
+        Matrix4f matrix = g.pose().last().pose();
+        Vector3f a = matrix.transformPosition(x1, y1, 0, new Vector3f());
+        Vector3f b = matrix.transformPosition(x2, y2, 0, new Vector3f());
+
+        g.enableScissor(
+                Math.round(Math.min(a.x, b.x)), Math.round(Math.min(a.y, b.y)),
+                Math.round(Math.max(a.x, b.x)), Math.round(Math.max(a.y, b.y)));
+    }
+
+    /**
+     * 在一个矩形里画，画完自动收 —— 连同 body 抛异常的情况。
+     *
+     * 这是给【拿不准会不会抛】的调用方准备的：裁剪是一段全局状态，enable 之后没能走到
+     * disable 的话，这一帧【剩下的所有东西】都会被切在那个框里，而且不报错、下一帧照旧。
+     * 本体自己那四处是紧挨着的两句、中间不会提前 return，用不上这一层；附属页面不一样，
+     * 它们的代码谁都保证不了，所以 {@link com.november.mcphone.api.client.ui.PhoneCanvas}
+     * 对外只给这一种写法。
+     *
+     * 空矩形直接不画：宽或高不为正时什么都看不见，连 body 都不必跑。
+     */
+    public static void clipped(GuiGraphics g, int x1, int y1, int x2, int y2, Runnable body) {
+        if (x2 <= x1 || y2 <= y1) return;
+
+        enableScissor(g, x1, y1, x2, y2);
+        try {
+            body.run();
+        } finally {
+            disableScissor(g);
+        }
+    }
+
+    /**
+     * 关裁剪。原版那句本来就只是弹栈、不涉及坐标，包一层纯粹是为了让成对的两句看着是一对
+     * ——一边写 {@code GuiUtil.enableScissor}、另一边写 {@code g.disableScissor}，下一个读到
+     * 的人会以为其中一句写错了。
+     */
+    public static void disableScissor(GuiGraphics g) {
+        g.disableScissor();
     }
 
     /**

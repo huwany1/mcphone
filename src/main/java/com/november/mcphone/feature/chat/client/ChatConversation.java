@@ -448,13 +448,14 @@ public final class ChatConversation {
         // 不足一屏从顶往下排；超出时贴底，scrollPx 把内容往下推露出更早的消息
         int y = contentH <= viewH ? top : bottom - contentH + scrollPx;
 
-        // enableScissor 收屏幕坐标、不跟随 pose；开机缩放动画期间到不了这里，不必补偿
-        g.enableScissor(x, top, x + w, bottom);
+        // 走 GuiUtil 那一层：原版的 enableScissor 收窗口坐标、不跟随 pose，而整个手机是
+        // 套在一层缩放里画的（界面大小 × 开机动画）。直接交本地坐标，界面大小一改字就被切
+        GuiUtil.enableScissor(g, x, top, x + w, bottom);
         for (Block b : blocks) {
             if (y + b.h() > top && y < bottom) renderBlock(g, font, b, x, y, w);
             y += b.h() + BLOCK_GAP;
         }
-        g.disableScissor();
+        GuiUtil.disableScissor(g);
     }
 
     private void renderBlock(GuiGraphics g, Font font, Block b, int x, int y, int w) {
