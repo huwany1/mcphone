@@ -147,6 +147,19 @@ public final class CalculatorApp implements IPhoneApp {
 覆盖了 `openPage()` 之后 `onPress()` 不会被调用，但接口仍要求你实现它——留空，
 或者写一条旧版 MCphone 上的退路（那时没有 `openPage`，只能自己 `setScreen`）。
 
+### 快捷键：你不用做任何事（1.9.2 起）
+
+玩家可以在「设置 → App 管理器 → 你的 App」里给它绑一个键，在世界里按一下就开机并直接
+进你这一页。**你不需要注册任何东西**，绑定按 App id 走，附属和内建一视同仁。
+
+有一点值得知道：快捷键走的是**和点图标完全同一条路**——先开机，再调你的 `openPage()`
+／`onPress()`。所以你在 `onPress()` 里写
+`if (Minecraft.getInstance().screen instanceof PhoneScreen ps)` 这种判断照样成立，
+不必为快捷键补一条分支。
+
+绑定存在玩家自己的客户端配置里（`config/mcphone-client.toml` 的 `appHotkeys`），
+一个键只能属于一个 App；已经被原版或别的模组占用的键会在绑定时被拦下。
+
 ### `requiredMods()` / `companionMods()` / `isAvailable()` —— 这里有个坑
 
 ```java

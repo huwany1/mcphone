@@ -1,5 +1,6 @@
 package com.november.mcphone;
 
+import com.november.mcphone.core.client.AppHotkeyHandler;
 import com.november.mcphone.core.client.ClientConfig;
 import com.november.mcphone.core.client.MCphoneKeyBindings;
 import com.november.mcphone.core.client.PhoneContainerScreen;
@@ -55,6 +56,9 @@ public class MCphoneClient {
         NeoForge.EVENT_BUS.addListener(CameraHandler::onClientTick);
 
         NeoForge.EVENT_BUS.addListener(PhoneKeyHandler::onClientTick);
+
+        // 每个 App 自己的快捷键。它不是 KeyMapping，只能听按下事件，理由见 AppHotkeys
+        NeoForge.EVENT_BUS.addListener(AppHotkeyHandler::onKeyInput);
 
         // 每 tick 泵一次音频流；没在放的时候第一行就返回
         NeoForge.EVENT_BUS.addListener(LocalPlayback::onClientTick);

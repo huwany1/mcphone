@@ -7,6 +7,8 @@ import com.november.mcphone.feature.music.client.playback.LocalPlayback;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
+import java.util.List;
+
 /**
  * 客户端配置 —— 只关乎这台机器上的人怎么看这部手机。
  *
@@ -45,6 +47,9 @@ public final class ClientConfig {
     /** 音乐 App 自己的音量（0-100）。最终输出还要乘游戏的主音量与唱片音量 */
     public static final ModConfigSpec.IntValue MUSIC_VOLUME;
 
+    /** 每个 App 的快捷键，一条写成 {@code <appId>=<键名>}。解析见 {@link AppHotkeys} */
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> APP_HOTKEYS;
+
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
@@ -68,6 +73,21 @@ public final class ClientConfig {
                         "Music app volume (0-100), multiplied by the game's master and record sliders.")
                 .translation("mcphone.config.music_volume")
                 .defineInRange("musicVolume", 100, 0, 100);
+
+        APP_HOTKEYS = builder
+                .comment("每个 App 的快捷键，一条一个 App，写成 <App id>=<键名>。",
+                        "键名用原版那套写法（options.txt 里也是这个），例如 key.keyboard.k。",
+                        "正常不用手改这里：设置 → App 管理器 → 点开某个 App → 快捷键。",
+                        "Per-app hotkeys, one entry per app, written as <app id>=<key name>",
+                        "(vanilla key names, e.g. key.keyboard.k). Normally set in-game via",
+                        "Settings -> App Manager -> pick an app -> Hotkey.")
+                .translation("mcphone.config.app_hotkeys")
+                // 元素校验只看"是不是字符串"：认不出来的条目由 AppHotkeys.load 逐条丢掉
+                // 并留日志。在这里较真的话，一条手改坏了的快捷键会让 NightConfig 把整个
+                // 列表退回默认值——玩家丢的就不是那一条，而是全部
+                .defineListAllowEmpty("appHotkeys", List.of(),
+                        () -> "mcphone:chat=key.keyboard.k",
+                        o -> o instanceof String);
 
         SPEC = builder.build();
     }
@@ -98,6 +118,9 @@ public final class ClientConfig {
         // 玩家把音量拧到了哪儿、用的是哪种循环
         MusicController.setMode(MUSIC_MODE.get());
         LocalPlayback.setVolume(MUSIC_VOLUME.get() / 100.0F);
+
+        // 快捷键同理：按下时要在一帧之内答出"这个键是哪个 App"，不能去问配置
+        AppHotkeys.load(APP_HOTKEYS.get());
     }
 
     //  手机界面 → 配置
@@ -133,6 +156,19 @@ public final class ClientConfig {
     public static void saveMusicMode(PlayMode mode) {
         if (!SPEC.isLoaded()) return;
         MUSIC_MODE.set(mode);
+        SPEC.save();
+    }
+
+    /**
+     * 快捷键表变了 —— 玩家在 App 管理器里绑了一个键，或者清掉了一个。
+     *
+     * 与上面几项同一套路数：{@link AppHotkeys} 那张表已经改好了，这里只负责
+     * 落盘。存盘会触发 Reloading 绕回 {@link #apply}，把刚写下去的同一份再
+     * load 一遍——重复但无害，而且省掉了"界面一份、配置一份，迟早对不上"。
+     */
+    public static void saveAppHotkeys(List<String> entries) {
+        if (!SPEC.isLoaded()) return;
+        APP_HOTKEYS.set(entries);
         SPEC.save();
     }
 

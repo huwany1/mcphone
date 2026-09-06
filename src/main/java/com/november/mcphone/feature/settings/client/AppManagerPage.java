@@ -1,7 +1,9 @@
 package com.november.mcphone.feature.settings.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.november.mcphone.MCphone;
 import com.november.mcphone.api.client.app.IPhoneApp;
+import com.november.mcphone.core.client.AppHotkeys;
 import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.GuiUtil;
 import com.november.mcphone.core.client.PhoneScreenRegistry;
@@ -128,8 +130,12 @@ public final class AppManagerPage {
             final int iconY = y + (rowH - ICON) / 2;
             safeRun(() -> app.renderIcon(g, x + 2, iconY, ICON, partialTick));
 
-            // 右边那一段先量出来，名字按剩下的宽度截——不截的话长名字会盖在标签上
+            // 右边那一段先量出来，名字按剩下的宽度截——不截的话长名字会盖在标签上。
+            // 绑了快捷键的把键名也写在这儿：这一页是唯一能一眼扫完"谁绑了什么"的地方，
+            // 而绑定分散在各自的详情页里，不摆出来就得一个个点进去看
+            InputConstants.Key bound = AppHotkeys.get(app.getId());
             String tag = app.isSystemApp() ? systemTag : ">";
+            if (bound != null) tag = bound.getDisplayName().getString() + "  " + tag;
             int tagW = font.width(tag);
             int textY = y + (rowH - font.lineHeight) / 2;
             g.drawString(font, tag, x + w - tagW - 2, textY, FontPalette.dim(), false);

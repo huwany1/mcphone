@@ -305,8 +305,14 @@ public final class PhoneScreen extends Screen {
         return mode == Mode.CHAT_CONVERSATION && chatConversation.isViewing(peer);
     }
 
-    /** 点开一个 App：先问 openPage()，没有就走 onPress() 由它自己跳出去 */
-    private void launchApp(IPhoneApp app) {
+    /**
+     * 点开一个 App：先问 openPage()，没有就走 onPress() 由它自己跳出去。
+     *
+     * 公开是为了快捷键：{@link AppHotkeyHandler} 先开机再调这一句，走的必须是
+     * 与点图标【同一条】路——附属那一页的 onOpen/onClose 配对、异常兜底、
+     * 主屏与 ADDON_PAGE 之间的模式切换都在这里面，另写一条迟早两边不一样。
+     */
+    public void launchApp(IPhoneApp app) {
         IPhonePage page;
         try {
             page = app.openPage();
@@ -943,6 +949,12 @@ public final class PhoneScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // App 管理页正等着玩家按一个键当快捷键。这一下不是在操作手机，是在绑键，
+        // 所以要抢在下面 ESC 关机之前——在那一页上 ESC 的意思是"清除这个绑定"
+        if (mode == Mode.APP_MANAGER_DETAIL && appManagerDetail.isCapturingKey()) {
+            appManagerDetail.captureKey(keyCode, scanCode);
+            return true;
+        }
         if (keyCode == 256) { // ESC
             // ESC 一下直接关机，不退层；退层交给导航栏 ◁
             onClose();
