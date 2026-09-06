@@ -94,7 +94,7 @@
   "mcphone.chat.attach_sticker": "表情",
   "mcphone.chat.pick_sticker": "表情",
   "mcphone.chat.pick_sticker_empty": "表情目录还是空的。把图片拖进游戏窗口就收进来了，或者点右上角打开文件夹自己放。",
-  "mcphone.chat.open_folder": "打开文件夹",
+  "mcphone.gui.open_folder": "打开文件夹",
   "mcphone.chat.sticker_imported": "收进表情了：%s 张",
   "mcphone.chat.sticker_import_failed": "这些图收不进来，看看日志",
   "mcphone.chat.pick_photo_empty": "相册里还没有照片。用相机拍一张、按 F2 截个图，或者直接把图片拖进游戏窗口。",

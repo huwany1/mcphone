@@ -157,7 +157,7 @@ public final class ChatMediaPicker {
                 x, y, FontPalette.title(), true);
 
         if (openFolderButton) {
-            String open = Component.translatable("mcphone.chat.open_folder").getString();
+            String open = Component.translatable("mcphone.gui.open_folder").getString();
             int openW = font.width(open);
             int openX = x + w - openW;
             openFolderHovered = GuiUtil.hit(mouseX, mouseY,

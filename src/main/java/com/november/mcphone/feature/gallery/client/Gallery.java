@@ -6,6 +6,7 @@ import com.november.mcphone.core.client.PhoneTheme;
 import com.november.mcphone.core.client.GuiUtil;
 import com.november.mcphone.core.client.ImageCodec;
 import com.november.mcphone.core.client.ImageFolder;
+import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -51,6 +52,9 @@ public final class Gallery {
      */
     private static final int HIT_PAD = 2;
 
+    /** 标题行上三样东西之间至少留的空隙 */
+    private static final int HEADER_GAP = 4;
+
     /** 删除键的贴图边长。与音乐页那几个键一样大，它们是同一家的 */
     private static final int BTN = 9;
 
@@ -83,6 +87,9 @@ public final class Gallery {
     /** 正在查看的照片下标，-1 表示当前是网格 */
     private int viewing = -1;
 
+    /** 本帧鼠标是否停在右上角那个「打开文件夹」上 */
+    private boolean openFolderHovered;
+
     /** 单张查看里鼠标悬停的按钮 */
     private enum ViewBtn { NONE, BACK, PREV, NEXT, DELETE }
     private ViewBtn hoveredBtn = ViewBtn.NONE;
@@ -104,6 +111,7 @@ public final class Gallery {
         page = 0;
         hoveredIdx = -1;
         hoveredPager = 0;
+        openFolderHovered = false;
         viewing = -1;
         deleteArmed = false;
     }
@@ -127,6 +135,7 @@ public final class Gallery {
         // 照片可能在查看期间被删空，或下标越界，此时退回网格
         if (viewing >= photos.size()) viewing = photos.isEmpty() ? -1 : photos.size() - 1;
         if (viewing >= 0) {
+            openFolderHovered = false;   // 单张查看里没有这一行，别让上一帧的悬停留着
             renderViewer(g, phoneLeft, phoneTop, screenW, screenH, statusH, navH,
                     mouseX, mouseY, font, photos);
             return;
@@ -136,12 +145,26 @@ public final class Gallery {
         int y = phoneTop + statusH + 4;
         int w = screenW - PAD * 2;
 
-        // ---- 标题：带照片总数 ----
+        // ---- 标题：左边标题，右上角「打开文件夹」，还装得下就再塞一个总数 ----
         String title = Component.translatable("mcphone.app.gallery").getString();
         g.drawString(font, title, x, y, FontPalette.title(), true);
+
+        String open = Component.translatable("mcphone.gui.open_folder").getString();
+        int openW = font.width(open);
+        int openX = x + w - openW;
+        openFolderHovered = GuiUtil.hit(mouseX, mouseY,
+                openX - HIT_PAD, y - HIT_PAD, openW + HIT_PAD * 2, font.lineHeight + HIT_PAD * 2);
+        g.drawString(font, open, openX, y,
+                openFolderHovered ? FontPalette.title() : FontPalette.link(), false);
+
+        // 总数往左让一格。让不下就不画：屏幕只有 120 宽，而一个读数不值得把那个键挤掉，
+        // 也不值得压在标题上。中英文的字宽差着一倍，所以是量出来的，不是写死的
         if (!photos.isEmpty()) {
             String count = String.valueOf(photos.size());
-            g.drawString(font, count, x + w - font.width(count), y, colorHint(), false);
+            int countX = openX - HEADER_GAP - font.width(count);
+            if (countX >= x + font.width(title) + HEADER_GAP) {
+                g.drawString(font, count, countX, y, colorHint(), false);
+            }
         }
         y += font.lineHeight + 4;
 
@@ -380,6 +403,13 @@ public final class Gallery {
                 case DELETE -> confirmDelete();
                 case NONE   -> deleteArmed = false;   // 点空白处即卸掉上膛的删除
             }
+            return true;
+        }
+
+        if (openFolderHovered) {
+            // 交给系统自己的文件管理器开，不弹任何 Java 的窗口：AWT 的选择器在 macOS 上
+            // 要与游戏抢主线程。目录不存在时先建出来——玩家点它的时候相册多半正是空的
+            Util.getPlatform().openPath(PhotoLibrary.folder().ensureDirectory());
             return true;
         }
 
