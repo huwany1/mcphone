@@ -155,9 +155,13 @@ public final class GuiUtil {
         Vector3f a = matrix.transformPosition(x1, y1, 0, new Vector3f());
         Vector3f b = matrix.transformPosition(x2, y2, 0, new Vector3f());
 
+        // 【两头取整的方向不一样】：小的那头往下取、大的那头往上取。
+        // 倍数不是整数时（125%，或者被窗口 fit() 夹出来的小数），四个角各自四舍五入
+        // 会让框比内容实际盖住的像素窄半格，最外面一行字被切掉一个像素——正是这次要修的
+        // 症状的微缩版。这么取最多多画 1 像素：多画看不出来，少画看得出来。
         g.enableScissor(
-                Math.round(Math.min(a.x, b.x)), Math.round(Math.min(a.y, b.y)),
-                Math.round(Math.max(a.x, b.x)), Math.round(Math.max(a.y, b.y)));
+                (int) Math.floor(Math.min(a.x, b.x)), (int) Math.floor(Math.min(a.y, b.y)),
+                (int) Math.ceil(Math.max(a.x, b.x)), (int) Math.ceil(Math.max(a.y, b.y)));
     }
 
     /**
@@ -169,11 +173,16 @@ public final class GuiUtil {
      * 它们的代码谁都保证不了，所以 {@link com.november.mcphone.api.client.ui.PhoneCanvas}
      * 对外只给这一种写法。
      *
-     * 空矩形直接不画：宽或高不为正时什么都看不见，连 body 都不必跑。
+     * 【body 一定会跑】，哪怕矩形退化成空的。原先这里有个"空矩形直接 return"的提前退出，
+     * 省下的那点绘制不值得：调用方常常在 body 里顺手把内容量出来（本体的关于页、App 详情页
+     * 就在算滚动上限），跳过 body 等于那次测量没发生，上限停在旧值上——而且只在收起、动画
+     * 那一两帧发生，极难查。
+     *
+     * 空矩形交给原版是安全的，翻过实现：有外层裁剪时 {@code ScissorStack.push} 走
+     * {@code intersection}，交不上就退成 {@code ScreenRectangle.empty()}；没有外层时
+     * {@code applyScissor} 用 {@code Math.max(0, ...)} 把宽高夹成 0。两条路都是"什么都不画"。
      */
     public static void clipped(GuiGraphics g, int x1, int y1, int x2, int y2, Runnable body) {
-        if (x2 <= x1 || y2 <= y1) return;
-
         enableScissor(g, x1, y1, x2, y2);
         try {
             body.run();

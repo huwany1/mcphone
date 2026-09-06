@@ -545,7 +545,7 @@ public final class PhoneScreen extends Screen {
 
         switch (mode) {
             case MAIN              -> homeGrid.render(g, phoneLeft, phoneTop, font,
-                    nowMs, animationDone, mouseX, mouseY, partialTick);
+                    nowMs, mouseX, mouseY, partialTick);
             case SETTINGS          -> {
                 buildSettingItems();
                 settingsList.render(g, phoneLeft, phoneTop,
