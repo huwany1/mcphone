@@ -23,6 +23,7 @@ import com.november.mcphone.feature.reader.BookRef;
 import com.november.mcphone.feature.reader.client.BookList;
 import com.november.mcphone.feature.reader.client.source.BookSources;
 import com.november.mcphone.feature.settings.client.AboutPage;
+import com.november.mcphone.feature.settings.client.AppManagerDetail;
 import com.november.mcphone.feature.settings.client.AppManagerPage;
 import com.november.mcphone.feature.settings.client.SettingsList;
 import com.november.mcphone.feature.settings.client.DeviceNameEditor;
@@ -47,7 +48,7 @@ import java.util.UUID;
 /** 手机主屏幕 GUI：管理各页面之间的导航（{@link Mode}）、分发输入、兜住附属页面的异常 */
 public final class PhoneScreen extends Screen {
 
-    public enum Mode { MAIN, SETTINGS, WALLPAPER_PICKER, FONT_COLOR_PICKER, APP_MANAGER, MUSIC_PLAYER, APP_STORE, APP_DETAIL, COMPANION_APPS, ADDON_PAGE, ABOUT, GALLERY, DEVICE_NAME, CHAT, CHAT_ADD_CONTACT, CHAT_CONVERSATION, CHAT_PHOTO_PICKER, CHAT_STICKER_PICKER, NOTES, NOTE_EDIT, CLOCK, WEATHER, READER }
+    public enum Mode { MAIN, SETTINGS, WALLPAPER_PICKER, FONT_COLOR_PICKER, APP_MANAGER, APP_MANAGER_DETAIL, MUSIC_PLAYER, APP_STORE, APP_DETAIL, COMPANION_APPS, ADDON_PAGE, ABOUT, GALLERY, DEVICE_NAME, CHAT, CHAT_ADD_CONTACT, CHAT_CONVERSATION, CHAT_PHOTO_PICKER, CHAT_STICKER_PICKER, NOTES, NOTE_EDIT, CLOCK, WEATHER, READER }
 
     private final long openTimeMs;
     private boolean animationDone;
@@ -60,6 +61,11 @@ public final class PhoneScreen extends Screen {
     private final List<SettingsList.Item> settingItems = new ArrayList<>();
 
     private final AppManagerPage appManagerPage = new AppManagerPage();
+
+    private final AppManagerDetail appManagerDetail = new AppManagerDetail();
+
+    /** 在 App 管理器里点中、正要进详情页的那一个 */
+    private IPhoneApp pendingManagedApp;
 
     private final MusicPage musicPage = new MusicPage();
 
@@ -166,6 +172,9 @@ public final class PhoneScreen extends Screen {
         if (this.mode == Mode.READER) bookList.close();
         if (target == Mode.READER) bookList.open();
         if (target == Mode.APP_MANAGER) appManagerPage.open();
+
+        if (this.mode == Mode.APP_MANAGER_DETAIL) appManagerDetail.close();
+        if (target == Mode.APP_MANAGER_DETAIL) appManagerDetail.open(pendingManagedApp);
 
         // 离开音乐页不停音乐，close 只收界面
         if (this.mode == Mode.MUSIC_PLAYER) musicPage.close();
@@ -432,7 +441,17 @@ public final class PhoneScreen extends Screen {
             return true;
         }
 
-        if (mode == Mode.ABOUT) {
+        if (mode == Mode.APP_MANAGER_DETAIL) {
+            navigateTo(Mode.APP_MANAGER);
+            return true;
+        }
+
+        // 设置的子页一律退回设置，而不是弹回主屏。
+        // 原来只有「设备命名」与「关于」是这么走的，壁纸、字体颜色、App 管理器都直接
+        // 回主屏——同一层的五项里三项走一条路、两项走另一条，玩家改完壁纸想接着改字色，
+        // 得从主屏重新点进设置
+        if (mode == Mode.ABOUT || mode == Mode.WALLPAPER_PICKER
+                || mode == Mode.FONT_COLOR_PICKER || mode == Mode.APP_MANAGER) {
             navigateTo(Mode.SETTINGS);
             return true;
         }
@@ -521,7 +540,11 @@ public final class PhoneScreen extends Screen {
             case APP_MANAGER       -> appManagerPage.render(g, phoneLeft, phoneTop,
                     PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
                     PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT,
-                    mouseX, mouseY, font);
+                    mouseX, mouseY, partialTick, font);
+            case APP_MANAGER_DETAIL -> appManagerDetail.render(g, phoneLeft, phoneTop,
+                    PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
+                    PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT,
+                    mouseX, mouseY, partialTick, font);
             case MUSIC_PLAYER      -> musicPage.render(g, phoneLeft, phoneTop,
                     PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
                     PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT,
@@ -623,7 +646,8 @@ public final class PhoneScreen extends Screen {
                 this::currentDeviceNameLabel));
         settingItems.add(new SettingsList.Item(
                 Component.translatable("mcphone.app.app_manager").getString(),
-                () -> navigateTo(Mode.APP_MANAGER)));
+                () -> navigateTo(Mode.APP_MANAGER),
+                () -> String.valueOf(PhoneScreenRegistry.getAppCount())));
         settingItems.add(new SettingsList.Item(
                 Component.translatable("mcphone.gui.about").getString(),
                 () -> navigateTo(Mode.ABOUT)));
@@ -739,6 +763,17 @@ public final class PhoneScreen extends Screen {
             }
             case APP_MANAGER -> {
                 appManagerPage.mouseClicked(mx, my, button);
+                IPhoneApp picked = appManagerPage.consumeSelection();
+                if (picked != null) {
+                    pendingManagedApp = picked;
+                    navigateTo(Mode.APP_MANAGER_DETAIL);
+                }
+                yield true;
+            }
+            case APP_MANAGER_DETAIL -> {
+                appManagerDetail.mouseClicked(mx, my, button);
+                // 卸载完了那个 App 已经不在列表里，留在它的详情页上没有意义
+                if (appManagerDetail.consumeBackRequest()) navigateTo(Mode.APP_MANAGER);
                 yield true;
             }
             case MUSIC_PLAYER -> {
