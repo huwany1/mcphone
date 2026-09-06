@@ -114,6 +114,54 @@ public final class GifCodec {
     }
 
     /**
+     * 只要第一帧，但要的是【铺在逻辑屏幕上】的那一整幅。不是 GIF、或者读不动，返回 null。
+     *
+     * 为什么不能就地用 ImageIO.read(文件)
+     *
+     * 那个方法给的是 GIF 里的第一个【子图】，而子图不等于画面：它可能只有画面的一小块，
+     * 还带着自己的偏移。优化过的动图开头很常见这种形状——透明的边被裁掉了，也有工具会先摆
+     * 一个 1×1 的占位帧。把子图直接当成"这张图长什么样"，表情页里就是一个缩得莫名其妙的
+     * 小方块（碰上占位帧则干脆是一个点），而它同时也是发送那条路的兜底
+     * （见 ChatImageSender.encodeStill）——那就等于把那一小块发给了对方。
+     *
+     * 所以这里与 {@link #read} 用同一套：按逻辑屏幕铺画布，把第一帧摆到它该在的位置上。
+     * 单帧 GIF 也走这里——{@link #read} 对它返回 null，画面却一样要铺对。
+     */
+    public static BufferedImage firstFrame(Path path) {
+        if (!looksLikeGif(path)) return null;
+
+        Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+        if (!readers.hasNext()) return null;
+        ImageReader reader = readers.next();
+
+        try (ImageInputStream in = ImageIO.createImageInputStream(path.toFile())) {
+            if (in == null) return null;
+            reader.setInput(in, false);
+
+            Dimension size = canvasSize(reader, 1);
+            if (size == null) return null;
+
+            BufferedImage frame = reader.read(0);
+            Descriptor d = descriptorOf(reader.getImageMetadata(0));
+
+            BufferedImage canvas = new BufferedImage(size.width, size.height,
+                    BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = canvas.createGraphics();
+            g.drawImage(frame, d.x(), d.y(), null);
+            g.dispose();
+            return canvas;
+        } catch (IOException | RuntimeException e) {
+            MCphone.LOGGER.warn("[MCphone] GIF 首帧读取失败 {}: {}", path.getFileName(), e.getMessage());
+            return null;
+        } catch (OutOfMemoryError e) {
+            MCphone.LOGGER.warn("[MCphone] GIF 过大，内存不足: {}", path.getFileName());
+            return null;
+        } finally {
+            reader.dispose();
+        }
+    }
+
+    /**
      * 一帧一帧铺到画布上，每铺完一张就（按需）拍一张缩过的快照。
      *
      * 每一帧都要合成，哪怕它不会被留下：跳过的话后面那些差分就没有底可差了。

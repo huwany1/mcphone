@@ -65,13 +65,18 @@ public final class ImageCodec {
     /** 贴图 ResourceLocation 的自增序号，保证路径唯一且字符合法 */
     private static int textureSeq = 0;
 
-    /** 读盘 → 等比缩到长边不超过 maxSide → NativeImage。后台线程调用，失败返回 null */
+    /**
+     * 读盘 → 等比缩到长边不超过 maxSide → NativeImage。后台线程调用，失败返回 null。
+     *
+     * 解码那一步走 {@link #read}，所以 GIF 拿到的是合成好的第一帧——表情页里的缩略图与
+     * 真发出去的那一张，这才是同一幅画面。
+     */
     public static NativeImage readAndScale(Path path, int maxSide) {
-        try (InputStream in = Files.newInputStream(path)) {
-            return scaleToNative(ImageIO.read(in), maxSide, path.getFileName().toString());
-        } catch (IOException e) {
-            MCphone.LOGGER.warn("[MCphone] 加载图片失败 {}: {}", path.getFileName(), e.getMessage());
-            return null;
+        BufferedImage src = read(path);
+        if (src == null) return null;   // 读不动的日志 read 已经记过了
+
+        try {
+            return toNative(scaleDown(src, maxSide));
         } catch (OutOfMemoryError e) {
             // 超大图（如 4K 全景）可能撑爆堆，吞掉当作加载失败，总比整个游戏崩掉强
             MCphone.LOGGER.warn("[MCphone] 图片过大，内存不足: {}", path.getFileName());
@@ -99,8 +104,14 @@ public final class ImageCodec {
      * 单拎出来是因为压缩那条路要在同一张原图上压好几遍（压出来超上限就降一档重压，
      * 见 ChatImageSender）。而解码正是这条路上最贵的一步——一张 4096 的 PNG 解一遍
      * 就是一秒出头，每降一档重读一次文件的话，光解码就要花掉三四秒。
+     *
+     * GIF 拐个弯：ImageIO.read 给的是文件里的第一个子图，而子图可能只是画面的一小块，
+     * 甚至是个 1×1 的占位帧（见 {@link GifCodec#firstFrame}）。那一格交给 GifCodec 铺好再回来。
      */
     public static BufferedImage read(Path path) {
+        BufferedImage composed = GifCodec.firstFrame(path);
+        if (composed != null) return composed;
+
         try (InputStream in = Files.newInputStream(path)) {
             BufferedImage src = ImageIO.read(in);
             if (src == null) MCphone.LOGGER.warn("[MCphone] 无法识别的图片: {}", path.getFileName());
