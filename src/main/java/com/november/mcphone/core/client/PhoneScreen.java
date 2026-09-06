@@ -28,6 +28,7 @@ import com.november.mcphone.feature.settings.client.AppManagerPage;
 import com.november.mcphone.feature.settings.client.SettingsList;
 import com.november.mcphone.feature.settings.client.DeviceNameEditor;
 import com.november.mcphone.feature.settings.client.FontColorPicker;
+import com.november.mcphone.feature.settings.client.UiScalePage;
 import com.november.mcphone.feature.settings.client.WallpaperPicker;
 import com.november.mcphone.feature.settings.client.WallpaperStore;
 import com.november.mcphone.feature.store.client.AppDetail;
@@ -48,7 +49,7 @@ import java.util.UUID;
 /** 手机主屏幕 GUI：管理各页面之间的导航（{@link Mode}）、分发输入、兜住附属页面的异常 */
 public final class PhoneScreen extends Screen {
 
-    public enum Mode { MAIN, SETTINGS, WALLPAPER_PICKER, FONT_COLOR_PICKER, APP_MANAGER, APP_MANAGER_DETAIL, MUSIC_PLAYER, APP_STORE, APP_DETAIL, COMPANION_APPS, ADDON_PAGE, ABOUT, GALLERY, DEVICE_NAME, CHAT, CHAT_ADD_CONTACT, CHAT_CONVERSATION, CHAT_PHOTO_PICKER, CHAT_STICKER_PICKER, NOTES, NOTE_EDIT, CLOCK, WEATHER, READER }
+    public enum Mode { MAIN, SETTINGS, WALLPAPER_PICKER, FONT_COLOR_PICKER, UI_SCALE, APP_MANAGER, APP_MANAGER_DETAIL, MUSIC_PLAYER, APP_STORE, APP_DETAIL, COMPANION_APPS, ADDON_PAGE, ABOUT, GALLERY, DEVICE_NAME, CHAT, CHAT_ADD_CONTACT, CHAT_CONVERSATION, CHAT_PHOTO_PICKER, CHAT_STICKER_PICKER, NOTES, NOTE_EDIT, CLOCK, WEATHER, READER }
 
     private final long openTimeMs;
     private boolean animationDone;
@@ -56,6 +57,7 @@ public final class PhoneScreen extends Screen {
     private Mode mode = Mode.MAIN;
     private final WallpaperPicker wallpaperPicker = new WallpaperPicker();
     private final FontColorPicker fontColorPicker = new FontColorPicker();
+    private final UiScalePage uiScalePage = new UiScalePage();
 
     private final SettingsList settingsList = new SettingsList();
     private final List<SettingsList.Item> settingItems = new ArrayList<>();
@@ -186,11 +188,15 @@ public final class PhoneScreen extends Screen {
         if (this.mode == Mode.NOTE_EDIT) noteEditor.close();
 
         if (this.mode == Mode.FONT_COLOR_PICKER) fontColorPicker.close();
+        // 拖着条离开这一页的话，拖动状态要收掉，否则下次进来还当自己在拖
+        if (this.mode == Mode.UI_SCALE) uiScalePage.close();
 
         if (target == Mode.ABOUT) aboutPage.open();
 
         // 时钟的"时间停没停"是跨帧累计的判断，离开时清掉
         if (this.mode == Mode.CLOCK) ClockPage.reset();
+
+        if (target == Mode.UI_SCALE) uiScalePage.open();
 
         this.mode = target;
         settingsList.open();
@@ -462,7 +468,8 @@ public final class PhoneScreen extends Screen {
         // 回主屏——同一层的五项里三项走一条路、两项走另一条，玩家改完壁纸想接着改字色，
         // 得从主屏重新点进设置
         if (mode == Mode.ABOUT || mode == Mode.WALLPAPER_PICKER
-                || mode == Mode.FONT_COLOR_PICKER || mode == Mode.APP_MANAGER) {
+                || mode == Mode.FONT_COLOR_PICKER || mode == Mode.UI_SCALE
+                || mode == Mode.APP_MANAGER) {
             navigateTo(Mode.SETTINGS);
             return true;
         }
@@ -512,13 +519,19 @@ public final class PhoneScreen extends Screen {
     public void resize(Minecraft mc, int w, int h) { super.resize(mc, w, h); invalidateLayout(); }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+    public void render(GuiGraphics g, int rawMouseX, int rawMouseY, float partialTick) {
         this.nowMs = System.currentTimeMillis();
         computeLayout();
 
-        renderBackground(g, mouseX, mouseY, partialTick);
+        renderBackground(g, rawMouseX, rawMouseY, partialTick);
 
-        float scale = getAnimationScale();
+        // 从这里往下，所有页面拿到的都是换算过的坐标——它们按 120×200 算命中，
+        // 而屏幕上画出来的是放大过的。背景那一句在上面，用的是原始坐标：它铺的是
+        // 整个窗口，不在手机那层缩放里
+        final int mouseX = (int) Math.round(unscaledX(rawMouseX));
+        final int mouseY = (int) Math.round(unscaledY(rawMouseY));
+
+        float scale = renderScale();
         int cx = phoneLeft + PhoneTheme.PHONE_WIDTH / 2;
         int cy = phoneTop + PhoneTheme.PHONE_HEIGHT / 2;
 
@@ -532,7 +545,7 @@ public final class PhoneScreen extends Screen {
 
         switch (mode) {
             case MAIN              -> homeGrid.render(g, phoneLeft, phoneTop, font,
-                    nowMs, animationDone, unscaledX(mouseX), unscaledY(mouseY), partialTick);
+                    nowMs, animationDone, mouseX, mouseY, partialTick);
             case SETTINGS          -> {
                 buildSettingItems();
                 settingsList.render(g, phoneLeft, phoneTop,
@@ -548,6 +561,10 @@ public final class PhoneScreen extends Screen {
                     PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
                     PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT,
                     mouseX, mouseY, font);
+            case UI_SCALE          -> uiScalePage.render(g, phoneLeft, phoneTop,
+                    PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
+                    PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT,
+                    mouseX, mouseY, font, this.width, this.height);
             case APP_MANAGER       -> appManagerPage.render(g, phoneLeft, phoneTop,
                     PhoneTheme.PHONE_WIDTH, PhoneTheme.PHONE_HEIGHT,
                     PhoneTheme.STATUS_BAR_HEIGHT, PhoneTheme.NAV_BAR_HEIGHT,
@@ -652,6 +669,10 @@ public final class PhoneScreen extends Screen {
                 () -> navigateTo(Mode.FONT_COLOR_PICKER),
                 PhoneScreen::currentFontColorLabel));
         settingItems.add(new SettingsList.Item(
+                Component.translatable("mcphone.settings.ui_scale").getString(),
+                () -> navigateTo(Mode.UI_SCALE),
+                () -> PhoneScale.percent() + "%"));
+        settingItems.add(new SettingsList.Item(
                 Component.translatable("mcphone.settings.device_name").getString(),
                 () -> navigateTo(Mode.DEVICE_NAME),
                 this::currentDeviceNameLabel));
@@ -683,6 +704,18 @@ public final class PhoneScreen extends Screen {
         PhoneChassis.drawNavBar(g, font, phoneLeft, phoneTop, mouseX, mouseY);
     }
 
+    /**
+     * 这一帧整个手机要放大多少 —— 开场动画那一档乘玩家定的界面大小。
+     *
+     * 两者相乘而不是二选一：开机动画是"从 60% 弹到 100%"，界面大小是"100% 到底是多大"，
+     * 各说各的一件事。乘起来之后动画照样是从小弹到大，只是终点变成了玩家定的那个尺寸。
+     *
+     * 鼠标坐标要按同一个数除回去，见 {@link #unscaledX}。
+     */
+    private float renderScale() {
+        return getAnimationScale() * PhoneScale.effective(this.width, this.height);
+    }
+
     private float getAnimationScale() {
         if (animationDone) return 1f;
         long elapsed = nowMs - openTimeMs;
@@ -694,23 +727,24 @@ public final class PhoneScreen extends Screen {
     }
 
     /**
-     * 撤掉开场动画的缩放。结果仍是屏幕坐标，原点没挪到手机左上角，
-     * 可以直接和 phoneLeft/phoneTop 比。
+     * 撤掉缩放（开场动画的那一档 + 玩家定的界面大小）。结果仍是屏幕坐标，原点没挪到
+     * 手机左上角，可以直接和 phoneLeft/phoneTop 比。
+     *
+     * 【所有】进到各页去的鼠标坐标都要先过这一道。各页是按 120×200 那个坐标系写的，
+     * 界面放大之后画面变了、它们算命中的那套数没变，不换算的话点哪儿都不对。
      */
     private double unscaledX(double mx) {
         int cx = phoneLeft + PhoneTheme.PHONE_WIDTH / 2;
-        return (mx - cx) / getAnimationScale() + cx;
+        return (mx - cx) / renderScale() + cx;
     }
 
     private double unscaledY(double my) {
         int cy = phoneTop + PhoneTheme.PHONE_HEIGHT / 2;
-        return (my - cy) / getAnimationScale() + cy;
+        return (my - cy) / renderScale() + cy;
     }
 
-    /** 点击是否落在手机机身（含边框）内 */
-    private boolean isInsidePhone(double mx, double my) {
-        double lx = unscaledX(mx);
-        double ly = unscaledY(my);
+    /** 点击是否落在手机机身（含边框）内。收的是【换算过】的坐标 */
+    private boolean isInsidePhone(double lx, double ly) {
         int fl = phoneLeft - PhoneTheme.PHONE_BORDER;
         int ft = phoneTop - PhoneTheme.PHONE_BORDER;
         return lx >= fl && lx < fl + PhoneTheme.PHONE_TOTAL_WIDTH
@@ -731,13 +765,17 @@ public final class PhoneScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
+    public boolean mouseClicked(double rawX, double rawY, int button) {
         // 绑键界面等着的话这一下归它。正常情况下轮不到这里——AppHotkeyHandler 在
         // 更早的地方就收走并取消了事件；留着是兜底：万一哪个模组把那条事件截了，
         // 屏幕这条路还在。两条都试过之后仍然绑不上，那就说明这一下压根没进游戏
         if (captureHotkeyMouse(button)) return true;
 
-        if (button != 0) return super.mouseClicked(mx, my, button);
+        if (button != 0) return super.mouseClicked(rawX, rawY, button);
+
+        // 换算一次，下面全用它。super 那几句仍然给原始坐标：原版控件是按屏幕坐标摆的
+        final double mx = unscaledX(rawX);
+        final double my = unscaledY(rawY);
 
         // 点在机身外＝收起手机，哪一页都一样。判定必须在分发之前：
         // 各页的 mouseClicked 一律 yield true 把点击吞掉，放到后面就永远轮不到
@@ -765,13 +803,10 @@ public final class PhoneScreen extends Screen {
 
         return switch (mode) {
             case MAIN -> {
-                double lx = unscaledX(mx);
-                double ly = unscaledY(my);
-
-                if (homeGrid.mousePressed(lx, ly)) yield true;
+                if (homeGrid.mousePressed(mx, my)) yield true;
 
                 // 机身外的已经在上面收走了，到这儿必是机身内的空白处：横着拖是翻页
-                homeGrid.pressBlank(lx, ly);
+                homeGrid.pressBlank(mx, my);
                 yield true;
             }
             case SETTINGS -> {
@@ -782,6 +817,10 @@ public final class PhoneScreen extends Screen {
                 if (wallpaperPicker.mouseClicked(button)) {
                     navigateTo(Mode.SETTINGS);
                 }
+                yield true;
+            }
+            case UI_SCALE -> {
+                uiScalePage.mouseClicked(mx, my);
                 yield true;
             }
             case FONT_COLOR_PICKER -> {
@@ -919,31 +958,44 @@ public final class PhoneScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
-        if (mode == Mode.MAIN && button == 0
-                && homeGrid.mouseDragged(unscaledX(mx), unscaledY(my))) {
+    public boolean mouseDragged(double rawX, double rawY, int button, double dx, double dy) {
+        final double mx = unscaledX(rawX);
+        final double my = unscaledY(rawY);
+        // 位移也要除：拖一段真实距离，在放大的界面里对应的手机内距离要小一些
+        final double scale = renderScale();
+        final double ldx = dx / scale;
+        final double ldy = dy / scale;
+
+        if (mode == Mode.MAIN && button == 0 && homeGrid.mouseDragged(mx, my)) {
             return true;
         }
 
+        if (mode == Mode.UI_SCALE && uiScalePage.mouseDragged(mx)) return true;
+
         // 多行输入框靠拖动选中文本，不转发的话选不了
-        if (mode == Mode.NOTE_EDIT && noteEditor.mouseDragged(mx, my, button, dx, dy)) return true;
-        return super.mouseDragged(mx, my, button, dx, dy);
+        if (mode == Mode.NOTE_EDIT && noteEditor.mouseDragged(mx, my, button, ldx, ldy)) return true;
+        return super.mouseDragged(rawX, rawY, button, dx, dy);
     }
 
     /** 松手才定性：主屏上这一下算"点开"还是"挪位置" */
     @Override
-    public boolean mouseReleased(double mx, double my, int button) {
+    public boolean mouseReleased(double rawX, double rawY, int button) {
+        if (mode == Mode.UI_SCALE) uiScalePage.mouseReleased();
+
         if (mode == Mode.MAIN && button == 0
-                && homeGrid.mouseReleased(unscaledX(mx), unscaledY(my))) {
+                && homeGrid.mouseReleased(unscaledX(rawX), unscaledY(rawY))) {
             IPhoneApp launch = homeGrid.consumeLaunchRequest();
             if (launch != null) launchApp(launch);
             return true;
         }
-        return super.mouseReleased(mx, my, button);
+        return super.mouseReleased(rawX, rawY, button);
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double rawX, double rawY, double scrollX, double scrollY) {
+        final double mx = unscaledX(rawX);
+        final double my = unscaledY(rawY);
+
         if (mode == Mode.MAIN && homeGrid.mouseScrolled(scrollY)) return true;
         if (mode == Mode.GALLERY && gallery.mouseScrolled(scrollY)) return true;
         if (mode == Mode.CHAT && chatList.mouseScrolled(scrollY)) return true;
@@ -962,7 +1014,7 @@ public final class PhoneScreen extends Screen {
         if (mode == Mode.ABOUT && aboutPage.mouseScrolled(scrollY, font)) return true;
         if (mode == Mode.ADDON_PAGE
                 && callPage(p -> p.mouseScrolled(mx, my, scrollY))) return true;
-        return super.mouseScrolled(mx, my, scrollX, scrollY);
+        return super.mouseScrolled(rawX, rawY, scrollX, scrollY);
     }
 
     @Override

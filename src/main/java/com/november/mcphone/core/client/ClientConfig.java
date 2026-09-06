@@ -54,6 +54,9 @@ public final class ClientConfig {
     /** 拍照那一下用模糊代替满屏白闪 */
     public static final ModConfigSpec.BooleanValue CAMERA_SOFT_FLASH;
 
+    /** 手机界面开多大，整数百分比。解析与夹取见 {@link PhoneScale} */
+    public static final ModConfigSpec.IntValue UI_SCALE;
+
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
@@ -107,6 +110,17 @@ public final class ClientConfig {
                 .translation("mcphone.config.camera_soft_flash")
                 .define("cameraSoftFlash", false);
 
+        UI_SCALE = builder
+                .comment("手机界面开多大，百分比。100 是原样，150 就是放大一半。",
+                        "GUI 缩放是全局的，调大它聊天框和物品栏会跟着变大；这一项只管手机。",
+                        "窗口放不下时会自动夹回去，配置里的数不变。",
+                        "在游戏里改：设置 → 界面大小。",
+                        "Phone UI size in percent (100 = unscaled). Unlike the vanilla GUI scale,",
+                        "this only affects the phone. In-game: Settings -> UI size.")
+                .translation("mcphone.config.ui_scale")
+                .defineInRange("uiScale", PhoneScale.DEFAULT_PERCENT,
+                        PhoneScale.MIN_PERCENT, PhoneScale.MAX_PERCENT);
+
         SPEC = builder.build();
     }
 
@@ -142,6 +156,9 @@ public final class ClientConfig {
 
         // 快门闪光也一样：闪光那 220 毫秒里每帧都要问一次用哪种
         CameraFlash.setSoft(CAMERA_SOFT_FLASH.get());
+
+        // 界面倍数更甚：每一帧、每一次鼠标换算都要用
+        PhoneScale.load(UI_SCALE.get());
     }
 
     //  手机界面 → 配置
@@ -201,6 +218,18 @@ public final class ClientConfig {
     public static void saveCameraSoftFlash(boolean soft) {
         if (!SPEC.isLoaded()) return;
         CAMERA_SOFT_FLASH.set(soft);
+        SPEC.save();
+    }
+
+    /**
+     * 玩家在「设置 → 界面大小」里改了倍数。
+     *
+     * 与上面几项同一套路数：{@link PhoneScale} 那边已经用上新值了（下一帧就变），
+     * 这里只负责落盘。
+     */
+    public static void saveUiScale(int percent) {
+        if (!SPEC.isLoaded()) return;
+        UI_SCALE.set(PhoneScale.clamp(percent));
         SPEC.save();
     }
 
