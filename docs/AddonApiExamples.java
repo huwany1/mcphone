@@ -115,6 +115,57 @@ public final class AddonApiExamples {
         @Override public void onClose() {}
     }
 
+    /**
+     * 一页可以滚的列表 —— 附属十有八九要写的形状，也是唯一一处非用
+     * {@link PhoneCanvas#clipped} 不可的地方。
+     *
+     * 【别写成 c.graphics().enableScissor(...)】：那句收窗口坐标、不看 PoseStack，
+     * 玩家把界面调到 150% 之后你的列表就会缺一块，而你在 100% 下永远测不出来。
+     */
+    public static final class ScrollingListPage implements IPhonePage {
+
+        private static final int ROW_H = 12;
+        private final java.util.List<String> rows = java.util.List.of("一", "二", "三");
+
+        private int scrollPx;
+
+        @Override
+        public void render(PhoneCanvas c) {
+            int contentH = rows.size() * ROW_H;
+            int maxScroll = Math.max(0, contentH - c.height());
+            scrollPx = Math.clamp(scrollPx, 0, maxScroll);
+
+            // 起点在 lambda 外面算好：里面那个 y 是要变的，捕获的量必须是定的
+            final int startY = c.y() - scrollPx;
+
+            c.clipped(c.x(), c.y(), c.width(), c.height(), () -> {
+                int y = startY;
+                for (String row : rows) {
+                    // 画在视野外的整行跳过——裁剪只是保证画不出去，不替你省绘制
+                    if (y + ROW_H > c.y() && y < c.y() + c.height()) {
+                        c.graphics().drawString(c.font(), row, c.x() + 4, y + 2,
+                                c.style().bodyColor(), false);
+                    }
+                    y += ROW_H;
+                }
+            });
+        }
+
+        @Override
+        public boolean mouseScrolled(double x, double y, double amount) {
+            scrollPx -= (int) (amount * ROW_H);
+            return true;
+        }
+
+        @Override public boolean mouseClicked(double x, double y, int button) { return true; }
+        @Override public boolean keyPressed(int key, int scan, int mods) { return false; }
+        @Override public boolean charTyped(char ch, int mods) { return false; }
+        @Override public boolean capturesKeyboard() { return false; }
+        @Override public boolean onBack() { return false; }
+        @Override public void onOpen() {}
+        @Override public void onClose() {}
+    }
+
     //  第 3 节：商店来源 
     public static final class MySource implements IAppSource {
         @Override

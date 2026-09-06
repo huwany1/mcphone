@@ -416,6 +416,49 @@ public final class PhoneScreen extends Screen {
                     page.getClass().getName(), t);
             closeAddonPage();
             navigateTo(Mode.MAIN);
+        } finally {
+            // 抛异常那条路更要收：附属很可能正是在开着裁剪的时候抛的
+            healLeakedScissor(g, page);
+        }
+    }
+
+    /** 已经因为裁剪没收干净警告过的页面，一个类只说一次，不刷屏 */
+    private static final java.util.Set<String> SCISSOR_WARNED = new java.util.HashSet<>();
+
+    /**
+     * 附属页面画完之后，看一眼裁剪有没有收干净；没有就替它收掉，并留一条日志。
+     *
+     * 为什么值得专门兜这一下
+     *
+     * 裁剪是【全局状态】。附属 enableScissor 之后没走到 disableScissor（最常见的原因就是
+     * 中间抛了异常），这一帧【剩下的所有东西】都会被切在它那个框里——状态栏、导航栏、
+     * 之后弹的通知，全没了；而且 GL 那边的 scissor 是跨帧留着的，下一帧照旧，直到有人
+     * 再设一次。玩家看到的是"整个游戏界面缺了一块"，谁也想不到是某个手机 App 干的。
+     *
+     * 怎么判断"没收干净"
+     *
+     * 原版 {@code ScissorStack.containsPoint} 的第一句是"栈空就恒为 true"。所以
+     * {@code containsPointInScissor(0, 0)} 为 false，就说明栈里还压着别人的框——手机永远
+     * 画在屏幕中间，它的裁剪框不会包含窗口左上角那个点。反过来不成立：万一那个漏下来的
+     * 框恰好包含 (0,0)，这里就发现不了。这是【兜底】不是【保证】，正确写法仍然是让附属
+     * 用 {@link com.november.mcphone.api.client.ui.PhoneCanvas#clipped}，那条路自带
+     * try/finally，压根漏不了。
+     *
+     * 弹之前先判一次，所以永远不会把空栈弹穿。8 层是个够用的上限：正常没人嵌这么深，
+     * 真嵌到了也说明那一页已经不对劲了。
+     */
+    private static void healLeakedScissor(GuiGraphics g, IPhonePage page) {
+        if (g.containsPointInScissor(0, 0)) return;
+
+        for (int i = 0; i < 8 && !g.containsPointInScissor(0, 0); i++) {
+            g.disableScissor();
+        }
+
+        String name = page.getClass().getName();
+        if (SCISSOR_WARNED.add(name)) {
+            MCphone.LOGGER.warn("[MCphone] 附属页面 {} 开了裁剪没关，已替它收掉。"
+                    + "不收的话这一帧之后的东西都会被切在它那个框里，还会跨帧留着。"
+                    + "请改用 PhoneCanvas.clipped(x, y, w, h, () -> ...)，它自带 try/finally", name);
         }
     }
 
