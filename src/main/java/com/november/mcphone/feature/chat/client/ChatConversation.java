@@ -76,9 +76,9 @@ public final class ChatConversation {
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
 
     /**
-     * 图片气泡最高多少像素。
+     * 一张图最高画多少像素。
      *
-     * 气泡最宽只有 80 出头，一张 16:9 的截图按宽度算出来才 45 高，这个数管的是竖构图的图：
+     * 宽度上限只有 80 出头，一张 16:9 的截图按宽度算出来才 45 高，这个数管的是竖构图的图：
      * 不封顶的话，一张竖着的截图会占掉大半个屏幕，前后几条消息全被挤出视野。
      */
     private static final int IMAGE_MAX_H = 56;
@@ -170,10 +170,10 @@ public final class ChatConversation {
     private int saveX;
     private int saveY;
 
-    /** 本帧画出来的图片气泡，供点击放大用；每帧重建，因为滚动一下位置就全变了 */
+    /** 本帧画出来的那几张图，供点击放大用；每帧重建，因为滚动一下位置就全变了 */
     private final List<ImageHit> imageHits = new ArrayList<>();
 
-    /** 本帧消息区的上下边界。气泡是裁剪着画的，被裁掉的那半截不该还点得动 */
+    /** 本帧消息区的上下边界。消息是裁剪着画的，被裁掉的那半截不该还点得动 */
     private int messageTop;
     private int messageBottom;
 
@@ -193,15 +193,16 @@ public final class ChatConversation {
         STAMP,
         /** 文字气泡 */
         TEXT,
-        /** 图片气泡 */
+        /** 一张图。不套气泡，理由见 renderBlock */
         IMAGE
     }
 
     /**
-     * 排版后的一块。w/h 含内边距；lines 只有文字块用得上，image 只有图片块用得上。
+     * 排版后的一块。文字块的 w/h 含气泡内边距，图片块就是图本身的大小；
+     * lines 只有文字块用得上，image 只有图片块用得上。
      *
      * 图片块为什么在这一步就把尺寸算好：像素是"看到了才去要"的（见 {@link ChatImageCache}），
-     * 拿到之前也得把气泡摆出来，尺寸按消息自带的宽高算（见 ImageBody）。等图到了再按真实
+     * 拿到之前也得把那块地方占出来，尺寸按消息自带的宽高算（见 ImageBody）。等图到了再按真实
      * 比例重排的话，那一下跳动恰好发生在玩家正看着的地方。
      */
     private record Block(BlockType type, boolean self, List<FormattedCharSequence> lines,
@@ -295,7 +296,7 @@ public final class ChatConversation {
     /**
      * 点开一张图看大的：整块内容区盖上一层黑底，图等比居中。
      *
-     * 为什么值得有这一手：气泡里那张最宽只有 80 个 GUI 像素，看得出是什么，看不清写了什么。
+     * 为什么值得有这一手：消息里那张最宽只有 80 个 GUI 像素，看得出是什么，看不清写了什么。
      * 存下来的图有 384 的长边（见 ChatImage），铺满内容区差不多正好是原尺寸。
      *
      * 点哪儿都关掉，导航栏的返回键也关（见 {@link #dismissViewer()}）——这一层不是一页，
@@ -451,15 +452,19 @@ public final class ChatConversation {
         }
 
         int bx = b.self() ? x + w - b.w() : x;
-        PhoneSkin.drawOrFill(g,
-                b.self() ? PhoneSkin.Element.CHAT_BUBBLE_SELF : PhoneSkin.Element.CHAT_BUBBLE_PEER,
-                bx, y, b.w(), b.h(),
-                b.self() ? COLOR_BUBBLE_SELF : COLOR_BUBBLE_PEER);
 
+        // 图片不套气泡：真实的聊天软件里图片就是图片本身，没有底色也没有一圈留白，
+        // 谁发的靠左右对齐看得出来。套一层气泡等于在图周围多画一圈没有意义的色块，
+        // 而手机屏幕只有 120 宽，那一圈还要从图身上扣
         if (b.type() == BlockType.IMAGE) {
             renderImageBlock(g, font, b, bx, y);
             return;
         }
+
+        PhoneSkin.drawOrFill(g,
+                b.self() ? PhoneSkin.Element.CHAT_BUBBLE_SELF : PhoneSkin.Element.CHAT_BUBBLE_PEER,
+                bx, y, b.w(), b.h(),
+                b.self() ? COLOR_BUBBLE_SELF : COLOR_BUBBLE_PEER);
 
         int ty = y + BUBBLE_PAD_Y;
         for (var line : b.lines()) {
@@ -470,39 +475,37 @@ public final class ChatConversation {
     }
 
     /**
-     * 图片气泡里画什么，取决于像素到了没有。
+     * 图片那一块画什么，取决于像素到了没有。整块就是图本身，没有边距。
      *
      * 问一句 {@link ChatImageCache#get} 就等于告诉缓存"这一帧它是可见的"，该去要的它自己会去要，
      * 因此这里不必判断"要过没有"。三种没有像素的情况各说各的：还在路上、服务端说没了、
-     * 收到了但解不开——玩家至少知道该不该等。
+     * 收到了但解不开——玩家至少知道该不该等。没有像素时铺一块底，那是这一块唯一有底色的时候：
+     * 空着的话屏幕上就是一个洞，看不出这儿本该有张图。
      */
     private void renderImageBlock(GuiGraphics g, Font font, Block b, int bx, int y) {
-        int ix = bx + BUBBLE_PAD_X;
-        int iy = y + BUBBLE_PAD_Y;
-        int iw = b.w() - BUBBLE_PAD_X * 2;
-        int ih = b.h() - BUBBLE_PAD_Y * 2;
+        int w = b.w();
+        int h = b.h();
 
         var texture = ChatImageCache.get(b.image());
         if (texture != null) {
             // 有像素才记位置：点一张还没到、或者已经过期的图，放大了也只是一块空白
-            imageHits.add(new ImageHit(b.image(), ix, iy, iw, ih));
-            GuiUtil.drawFitted(g, texture, ix, iy, iw, ih);
+            imageHits.add(new ImageHit(b.image(), bx, y, w, h));
+            GuiUtil.drawFitted(g, texture, bx, y, w, h);
             return;
         }
 
-        // 没有像素时先铺一块底，否则气泡里是一个空洞，看不出这儿本该有张图
-        g.fill(ix, iy, ix + iw, iy + ih, PhoneTheme.COLOR_SCRIM);
+        g.fill(bx, y, bx + w, y + h, PhoneTheme.COLOR_SCRIM);
 
         String hint = switch (ChatImageCache.status(b.image())) {
             case GONE -> Component.translatable("mcphone.chat.image_expired").getString();
             case BROKEN -> Component.translatable("mcphone.chat.image_broken_local").getString();
             case LOADING, READY -> "…";
         };
-        // 先截再居中：气泡窄的时候（一张竖图）「已过期」放不下，按截断前的宽度算会偏出去
-        hint = GuiUtil.truncate(font, hint, iw - 2);
+        // 先截再居中：那一块窄的时候（一张竖图）「已过期」放不下，按截断前的宽度算会偏出去
+        hint = GuiUtil.truncate(font, hint, w - 2);
         g.drawString(font, hint,
-                ix + Math.max(0, (iw - font.width(hint)) / 2),
-                iy + (ih - font.lineHeight) / 2,
+                bx + Math.max(0, (w - font.width(hint)) / 2),
+                y + (h - font.lineHeight) / 2,
                 colorEmpty(), false);
     }
 
@@ -682,19 +685,22 @@ public final class ChatConversation {
         laidOutWidth = maxW;
     }
 
-    /** 按消息自带的宽高等比算出图片气泡多大，宽不超过气泡上限、高不超过 {@link #IMAGE_MAX_H} */
+    /**
+     * 按消息自带的宽高等比算出这张图画多大：宽不超过气泡那条线、高不超过 {@link #IMAGE_MAX_H}。
+     *
+     * 块的大小就是图本身的大小，不留内边距——图片不套气泡，理由见 {@link #renderBlock}。
+     * 宽度上限仍跟文字气泡共用同一条线，那样一列消息的右边缘才是齐的。
+     */
     private static Block imageBlock(ImageBody image, boolean self, int bubbleMaxW) {
-        int maxW = Math.max(8, bubbleMaxW - BUBBLE_PAD_X * 2);
-
-        float scale = Math.min((float) maxW / image.width(), (float) IMAGE_MAX_H / image.height());
+        float scale = Math.min((float) bubbleMaxW / image.width(),
+                               (float) IMAGE_MAX_H / image.height());
         // 比屏幕还小的图不放大：放大只会糊，而手机上的图本来就该小
         scale = Math.min(scale, 1f);
 
         int w = Math.max(1, Math.round(image.width() * scale));
         int h = Math.max(1, Math.round(image.height() * scale));
 
-        return new Block(BlockType.IMAGE, self, List.of(), image.image(),
-                w + BUBBLE_PAD_X * 2, h + BUBBLE_PAD_Y * 2);
+        return new Block(BlockType.IMAGE, self, List.of(), image.image(), w, h);
     }
 
     public boolean mouseClicked(double mx, double my, int button) {
