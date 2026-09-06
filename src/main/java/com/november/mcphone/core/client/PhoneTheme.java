@@ -198,6 +198,23 @@ public final class PhoneTheme {
      */
     public static final int COLOR_READER_TAB = 0xFF3A3A52;
 
+    // ---- 滑条（设置里的界面大小，将来的音量条也用这一组）----
+
+    /** 滑条的槽。比搜索栏再暗一档，让填充那段跳出来 */
+    public static final int COLOR_SLIDER_TRACK = 0xFF23233A;
+
+    /** 已填充的那一段 */
+    public static final int COLOR_SLIDER_FILL = 0xFF43A047;
+
+    /** 滑块本身。近白，是这一页上最亮的东西——手要抓的就是它 */
+    public static final int COLOR_SLIDER_KNOB = 0xFFE8E8F0;
+
+    /** 加减键的底 */
+    public static final int COLOR_STEP_BUTTON = 0xFF3A3A52;
+
+    /** 加减键悬停时的底。没有贴图时靠换颜色，有贴图时由 PhoneSkin 整张提亮 */
+    public static final int COLOR_STEP_BUTTON_HOVER = 0xFF4E4E6E;
+
     public static final int COLOR_VIEWFINDER = 0xCCFFFFFF;
 
     /** 正中的准星 */

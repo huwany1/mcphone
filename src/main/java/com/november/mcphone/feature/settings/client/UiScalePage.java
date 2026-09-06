@@ -3,6 +3,7 @@ package com.november.mcphone.feature.settings.client;
 import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.GuiUtil;
 import com.november.mcphone.core.client.PhoneScale;
+import com.november.mcphone.core.client.PhoneSkin;
 import com.november.mcphone.core.client.PhoneTheme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -19,6 +20,12 @@ import net.minecraft.network.chat.Component;
  * 三个入口都留着，因为它们各有各的场合：条是"大概拖到那儿"，加减键是"再多一档"，
  * 而 25% 一档正好让整数倍落得到（GUI 缩放 2 配 150% 就是整 3 倍，字最清楚）。
  *
+ * 这一页可以换肤
+ *
+ * 槽、填充、滑块、加减键的底都走 {@link PhoneSkin}（`settings/slider_track` 那四张），
+ * 缺图时才用 {@link PhoneTheme} 里那组颜色。这一组四件刻意起的是通用名字：将来音量条
+ * 之类的滑条也用它们，别再各画各的。
+ *
  * 窗口放不下时
  *
  * 真正生效的倍数会被窗口夹住（见 {@link PhoneScale#effective}），但配置里的数不改——
@@ -34,6 +41,9 @@ public final class UiScalePage {
 
     /** 进度条高度。比按钮矮一截，看着才像"条"而不是第三个按钮 */
     private static final int BAR_H = 6;
+
+    /** 滑块宽度。4 像素：细了抓不住，粗了在 108 像素宽的条上显得笨重 */
+    private static final int KNOB_W = 4;
 
     /** 拖动时按 5% 对齐：手拖不出 1% 的精度，对齐之后数字不会跳得没规律 */
     private static final int DRAG_SNAP = 5;
@@ -93,16 +103,21 @@ public final class UiScalePage {
                 mouseX, mouseY);
 
         int barY = rowY + (BTN - BAR_H) / 2;
-        g.fill(barX, barY, barX + barW, barY + BAR_H, PhoneTheme.COLOR_BUTTON_DISABLED);
+        PhoneSkin.drawOrFill(g, PhoneSkin.Element.SLIDER_TRACK,
+                barX, barY, barW, BAR_H, PhoneTheme.COLOR_SLIDER_TRACK);
 
         float t = (float) (PhoneScale.percent() - PhoneScale.MIN_PERCENT)
                 / (PhoneScale.MAX_PERCENT - PhoneScale.MIN_PERCENT);
         int fill = Math.round(barW * t);
-        if (fill > 0) g.fill(barX, barY, barX + fill, barY + BAR_H, PhoneTheme.COLOR_PAGE_DOT_ACTIVE);
+        if (fill > 0) {
+            PhoneSkin.drawOrFill(g, PhoneSkin.Element.SLIDER_FILL,
+                    barX, barY, fill, BAR_H, PhoneTheme.COLOR_SLIDER_FILL);
+        }
 
-        // 滑块：压在填充的末端，拖起来看得见自己在拖什么
-        int knobX = Math.clamp(barX + fill - 1, barX, barX + barW - 2);
-        g.fill(knobX, rowY, knobX + 2, rowY + BTN, FontPalette.title());
+        // 滑块压在填充的末端，比槽高一圈——拖起来看得见自己抓的是什么
+        int knobX = Math.clamp(barX + fill - KNOB_W / 2, barX, barX + barW - KNOB_W);
+        PhoneSkin.drawOrFill(g, PhoneSkin.Element.SLIDER_KNOB,
+                knobX, rowY, KNOB_W, BTN, PhoneTheme.COLOR_SLIDER_KNOB);
 
         y = rowY + BTN + 4;
 
@@ -158,11 +173,19 @@ public final class UiScalePage {
                 false);
     }
 
+    /**
+     * 一个加减键。底可换肤，悬停时整张提亮——有贴图之后"换个颜色"是看不见的，
+     * 那一档只能靠亮度，见 {@link PhoneSkin#drawOrFill(GuiGraphics, PhoneSkin.Element,
+     * int, int, int, int, int, boolean)}。
+     */
     private void drawStepButton(GuiGraphics g, Font font, int x, int y, String glyph,
                                 boolean enabled, int mouseX, int mouseY) {
         boolean hovered = enabled && GuiUtil.hit(mouseX, mouseY, x, y, BTN, BTN);
-        g.fill(x, y, x + BTN, y + BTN,
-                hovered ? PhoneTheme.COLOR_ROW_HOVER : PhoneTheme.COLOR_BUTTON_DISABLED);
+
+        PhoneSkin.drawOrFill(g, PhoneSkin.Element.STEP_BUTTON, x, y, BTN, BTN,
+                hovered ? PhoneTheme.COLOR_STEP_BUTTON_HOVER : PhoneTheme.COLOR_STEP_BUTTON,
+                hovered);
+
         g.drawString(font, glyph, x + (BTN - font.width(glyph)) / 2,
                 y + (BTN - font.lineHeight) / 2,
                 enabled ? FontPalette.title() : FontPalette.dim(), false);

@@ -157,7 +157,23 @@ public final class PhoneSkin {
         READER_UNSHELVED("reader/unshelved", "reader_unshelved"),
 
         /** 底部「书架 / 书城」当前那一页的底。建议 54×12，整张拉伸；兜底色 {@link PhoneTheme#COLOR_READER_TAB}。另一页不画底 */
-        READER_TAB("reader/tab", "reader_tab");
+        READER_TAB("reader/tab", "reader_tab"),
+
+        /**
+         * 滑条的槽（「设置 → 界面大小」那一条）。建议 100×6，整张横向拉伸；
+         * 兜底色 {@link PhoneTheme#COLOR_SLIDER_TRACK}。
+         * 这一组四件是【通用滑条】，不是界面大小专用——将来音量条之类的也走它们。
+         */
+        SLIDER_TRACK("settings/slider_track"),
+
+        /** 滑条已填充的那一段。建议 100×6，按当前值裁宽后拉伸；兜底色 {@link PhoneTheme#COLOR_SLIDER_FILL} */
+        SLIDER_FILL("settings/slider_fill"),
+
+        /** 滑块。建议 4×14（比槽高，压在槽上）；兜底色 {@link PhoneTheme#COLOR_SLIDER_KNOB} */
+        SLIDER_KNOB("settings/slider_knob"),
+
+        /** 加减键的底。建议 14×14；兜底色 {@link PhoneTheme#COLOR_STEP_BUTTON}，悬停时整张提亮 */
+        STEP_BUTTON("settings/step_button");
 
         /** 现在的路径，按功能分目录 */
         private final ResourceLocation texture;
