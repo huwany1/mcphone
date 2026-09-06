@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 
+import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -85,34 +86,80 @@ public final class ImageCodec {
     }
 
     /**
-     * 读盘 → 等比缩到长边不超过 maxSide → 编码成 PNG 字节。后台线程调用，失败返回 null。
+     * 读盘解码成一张原尺寸的图，不缩放。后台线程调用，失败返回 null。
      *
-     * 用 TYPE_INT_RGB 而不是带 alpha 的：截图本来就没有透明像素，多一个通道只是让
-     * 编出来的文件更大，而这条路上每一个字节都要过网络。
+     * 单拎出来是因为压缩那条路要在同一张原图上压好几遍（压出来超上限就降一档重压，
+     * 见 ChatImageSender）。而解码正是这条路上最贵的一步——一张 4096 的 PNG 解一遍
+     * 就是一秒出头，每降一档重读一次文件的话，光解码就要花掉三四秒。
      */
-    public static Encoded encodePng(Path path, int maxSide) {
+    public static BufferedImage read(Path path) {
         try (InputStream in = Files.newInputStream(path)) {
             BufferedImage src = ImageIO.read(in);
-            if (src == null) return null;
-
-            BufferedImage scaled = scaleDown(src, maxSide);
-            BufferedImage opaque = new BufferedImage(
-                    scaled.getWidth(), scaled.getHeight(), BufferedImage.TYPE_INT_RGB);
-            Graphics2D g2 = opaque.createGraphics();
-            g2.drawImage(scaled, 0, 0, null);
-            g2.dispose();
-
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            if (!ImageIO.write(opaque, "png", out)) return null;
-
-            return new Encoded(out.toByteArray(), opaque.getWidth(), opaque.getHeight());
+            if (src == null) MCphone.LOGGER.warn("[MCphone] 无法识别的图片: {}", path.getFileName());
+            return src;
         } catch (IOException | RuntimeException e) {
-            MCphone.LOGGER.warn("[MCphone] 图片压缩失败 {}: {}", path.getFileName(), e.getMessage());
+            MCphone.LOGGER.warn("[MCphone] 读图失败 {}: {}", path.getFileName(), e.getMessage());
             return null;
         } catch (OutOfMemoryError e) {
             MCphone.LOGGER.warn("[MCphone] 图片过大，内存不足: {}", path.getFileName());
             return null;
         }
+    }
+
+    /**
+     * 等比缩到长边不超过 maxSide → 编码成 PNG 字节。后台线程调用，失败返回 null。
+     *
+     * 收一张已解码的图而不是一个路径：同一张原图常常要压好几遍，读盘与解码只该做一次。
+     *
+     * 透明通道留不留，看这张图里有没有真的透明像素
+     *
+     * 截图没有透明像素，多一个通道只是让文件更大，而这条路上每个字节都要过网络；
+     * 但表情几乎全是透明底的 PNG，一律按不透明编码的话，透明的地方会变成纯黑——
+     * 玩家在表情页里看到的是对的（那条路保留 alpha），发出去却带一圈黑框。
+     * 所以按图判，而不是按"这条路上的图应该长什么样"判。
+     */
+    public static Encoded encodePng(BufferedImage src, int maxSide) {
+        try {
+            BufferedImage scaled = scaleDown(src, maxSide);
+            boolean transparent = hasTransparentPixel(scaled);
+
+            BufferedImage out = new BufferedImage(scaled.getWidth(), scaled.getHeight(),
+                    transparent ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2 = out.createGraphics();
+            // Src 而不是默认的 SrcOver：要的是"照抄这张图"，不是把它合成到一张空画布上
+            if (transparent) g2.setComposite(AlphaComposite.Src);
+            g2.drawImage(scaled, 0, 0, null);
+            g2.dispose();
+
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            if (!ImageIO.write(out, "png", bytes)) return null;
+
+            return new Encoded(bytes.toByteArray(), out.getWidth(), out.getHeight());
+        } catch (IOException | RuntimeException e) {
+            MCphone.LOGGER.warn("[MCphone] 图片压缩失败: {}", e.getMessage());
+            return null;
+        } catch (OutOfMemoryError e) {
+            MCphone.LOGGER.warn("[MCphone] 图片过大，内存不足");
+            return null;
+        }
+    }
+
+    /**
+     * 这张图里有没有真的透明像素。
+     *
+     * 只问 ColorModel.hasAlpha() 不够：一张存成 ARGB 的图完全可能每个像素都是不透明的
+     * （相机拍的照片就是），那样白留一个通道。所以有通道时再逐像素看一眼——这里看的是
+     * 已经缩到 384 以内的图，十几万个像素，几毫秒的事。
+     */
+    private static boolean hasTransparentPixel(BufferedImage image) {
+        if (!image.getColorModel().hasAlpha()) return false;
+
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if ((image.getRGB(x, y) >>> 24) != 0xFF) return true;
+            }
+        }
+        return false;
     }
 
     /** 把已就绪的 NativeImage 注册成贴图。必须在渲染线程调用 */

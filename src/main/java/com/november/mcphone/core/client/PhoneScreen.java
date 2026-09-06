@@ -217,11 +217,6 @@ public final class PhoneScreen extends Screen {
             tellPlayer("mcphone.chat.image_disabled");
             return;
         }
-        if (ChatImageSender.isBusy()) {
-            tellPlayer("mcphone.chat.image_too_fast");
-            return;
-        }
-
         Path picture = files.stream().filter(PhoneScreen::looksLikeImage).findFirst().orElse(null);
         if (picture == null) {
             tellPlayer("mcphone.chat.drop_not_image");

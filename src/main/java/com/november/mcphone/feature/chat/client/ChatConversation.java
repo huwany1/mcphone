@@ -563,17 +563,19 @@ public final class ChatConversation {
      * 为什么是「+」而不是直接一个图片键：能发的东西不止一种（现在是图片与表情，往后还会有别的），
      * 每多一种就在输入栏挤一个键的话，那条栏很快就没地方打字了。「+」把它们收进一张小菜单。
      *
-     * 正在发一张时画成灰的并且点不动：压缩与上传是异步的，连点两下会有两次上传交错着
-     * 发上去，而服务端按"片号必须连续"收（见 ChatImageUploads），交错的结果是两张都发不成。
+     * 正在发一张时画淡，但照样点得动：同时只能有一次上传（理由见 ChatImageSender），
+     * 而点快了的那几张是排队而不是丢掉。淡色是告诉玩家"上一张还在路上"，不是"别点了"。
+     * 只有队伍也排满了才真的点不动——那时候再收就不是手快而是刷屏了。
      */
     private void renderAttachButton(GuiGraphics g, Font font, int x, int barY,
                                     int mouseX, int mouseY) {
 
         int by = barY + (INPUT_H - ATTACH_BTN) / 2;
         boolean sending = ChatImageSender.isBusy();
-        if (sending) attachMenuOpen = false;
+        boolean blocked = ChatImageSender.isFull();
+        if (blocked) attachMenuOpen = false;
 
-        attachBtnHovered = !sending && GuiUtil.hit(mouseX, mouseY,
+        attachBtnHovered = !blocked && GuiUtil.hit(mouseX, mouseY,
                 x - 1, by - 1, ATTACH_BTN + 2, ATTACH_BTN + 2);
 
         if (attachBtnHovered || attachMenuOpen) {
@@ -584,7 +586,7 @@ public final class ChatConversation {
         if (!PhoneSkin.draw(g, PhoneSkin.Element.CHAT_ATTACH, x, by, ATTACH_BTN, ATTACH_BTN)) {
             String glyph = "+";
             g.drawString(font, glyph, x + (ATTACH_BTN - font.width(glyph)) / 2, by,
-                    sending ? COLOR_SEND_OFF
+                    sending || blocked ? COLOR_SEND_OFF
                             : (attachBtnHovered || attachMenuOpen ? COLOR_SEND_HOVER : COLOR_SEND),
                     false);
         }

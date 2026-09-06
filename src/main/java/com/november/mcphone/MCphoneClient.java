@@ -59,6 +59,9 @@ public class MCphoneClient {
         // 每 tick 泵一次音频流；没在放的时候第一行就返回
         NeoForge.EVENT_BUS.addListener(LocalPlayback::onClientTick);
 
+        // 冷却期里点的那几张图排着，每 tick 看一眼闸开了没有；队伍空的时候第一行就返回
+        NeoForge.EVENT_BUS.addListener(ChatImageSender::onClientTick);
+
         // 一首停下来时带停止原因通知控制器，见 LocalPlayback.Ending
         LocalPlayback.setEndListener(MusicController::onTrackEnded);
         NeoForge.EVENT_BUS.addListener(CameraHandler::onRenderGui);

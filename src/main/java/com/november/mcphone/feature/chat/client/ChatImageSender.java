@@ -8,9 +8,18 @@ import com.november.mcphone.feature.chat.net.SendChatImagePacket;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -24,13 +33,23 @@ import java.util.UUID;
  *
  * 压完还是太大怎么办
  *
- * 降一档尺寸再压一次（见 {@link #FALLBACK_SIDES}）。PNG 是无损的，一张噪点多的截图
+ * 降一档尺寸再压一次（见 {@link #SIDES}）。PNG 是无损的，一张噪点多的截图
  * （雨天、树叶、粒子）压出来能比一张干净的大好几倍，光按尺寸算压不出准头。
  *
- * 一次只发一张
+ * 但【读盘与解码只做一次】：那是这条路上最贵的一步（一张 4096 的 PNG 解一遍就是一秒出头），
+ * 每降一档重读一遍文件的话，光解码就能花掉三四秒，而玩家从点下去到看见气泡一直在等。
  *
- * 界面上也只能选一张，这道闸是防手快：压缩是异步的，连点两下会有两次上传交错着发上去，
- * 而服务端按"片号必须连续"收（见 ChatImageUploads），交错的结果是两张都发不成。
+ * 同一张只压一次
+ *
+ * 压出来的结果只取决于文件内容，所以按文件记在 {@link #ENCODED} 里。表情天生要反复发
+ * 同一张，第二次起直接拿现成的字节走，那一段等待就没有了。
+ *
+ * 一次只发一张，点快了的排队
+ *
+ * 同时只允许一次上传：压缩是异步的，两次上传交错着发上去，而服务端按"片号必须连续"收
+ * （见 ChatImageUploads），交错的结果是两张都发不成。但"这会儿不能发"不等于"当你没点过"——
+ * 表情天生就是要连着发的，冷却期里点的那几张排进 {@link #QUEUE}，闸一开自己走。
+ * 排满了才提示一句"太快了"。
  *
  * 线程：读盘与压缩在后台，发包回到渲染线程——网络那一端不该被后台线程碰。
  */
@@ -38,8 +57,43 @@ public final class ChatImageSender {
 
     private ChatImageSender() {}
 
-    /** 压不进上限时依次降到这几档长边。降一档面积就少三成多，噪点最狠的画面也能落进上限 */
-    private static final int[] FALLBACK_SIDES = {320, 256, 192};
+    /**
+     * 依次试这几档长边，第一个压进上限的就是发出去的那一张。
+     *
+     * 第一档就是 {@link ChatImage#MAX_SIDE}；往下每降一档面积少三成多，噪点最狠的画面
+     * 也能落进上限。
+     */
+    private static final int[] SIDES = {ChatImage.MAX_SIDE, 320, 256, 192};
+
+    /** 压好的字节留几张。一张至多 {@link ChatImage#MAX_BYTES}，八张封顶 1 MB */
+    private static final int MAX_CACHED = 8;
+
+    /**
+     * 压好的字节：文件 → 已经压进上限的那一张 PNG。
+     *
+     * 键里带上改动时间与大小（见 {@link #cacheKey}），是为了让"同名文件被换掉"——
+     * 重新导一张同名表情——之后旧的那份失效。
+     *
+     * 退出世界不清：表情跟着客户端走，下一个服务器里发的多半还是这几张。
+     *
+     * 同步包着：读写都在后台线程，而访问序的 LinkedHashMap 连 get 都会改结构。
+     */
+    private static final Map<String, ImageCodec.Encoded> ENCODED = Collections.synchronizedMap(
+            new LinkedHashMap<>(MAX_CACHED + 1, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, ImageCodec.Encoded> eldest) {
+                    return size() > MAX_CACHED;
+                }
+            });
+
+    /** 排队的位置。四张是一次手快的量，再多就不是"手快"而是刷屏了 */
+    private static final int MAX_QUEUED = 4;
+
+    /** 排着等发的一张 */
+    private record Queued(UUID peer, Path photo) {}
+
+    /** 只有主线程碰它：点击、拖放、客户端 tick 都在主线程 */
+    private static final Deque<Queued> QUEUE = new ArrayDeque<>();
 
     /** 一次上传最多允许拖这么久，超时就当它没发出去，放开下一次 */
     private static final long SEND_TIMEOUT_MS = 15_000L;
@@ -60,7 +114,7 @@ public final class ChatImageSender {
     /** 刚发上去的那张图的字节，等回声带着 id 回来时塞进缓存，见 {@link #onNewMessage} */
     private static byte[] pendingPng;
 
-    /** 这会儿不能发（正在发，或者刚发完还在冷却）。界面据此把图片键画成灰的 */
+    /** 这会儿有一张正在发，或者刚发完还在冷却。再点的会排队，见 {@link #send} */
     public static boolean isBusy() {
         long now = System.currentTimeMillis();
 
@@ -72,15 +126,45 @@ public final class ChatImageSender {
         return now < readyAt;
     }
 
+    /** 队伍也满了，这一下真的收不下。界面据此把「+」画成灰的并且点不动 */
+    public static boolean isFull() {
+        return QUEUE.size() >= MAX_QUEUED;
+    }
+
     /**
      * 发一张。立刻返回，压缩与发包都在后面。
      *
+     * 正忙着就排队而不是丢掉：玩家点了一下，界面上却什么都没发生，那看起来是消息丢了，
+     * 而不是"缓一下"。队伍满了才提示一句。
+     *
      * @param peer  收件人
-     * @param photo 相册里那张照片的路径
+     * @param photo 相册或表情目录里那张图的路径
      */
     public static void send(UUID peer, Path photo) {
-        if (peer == null || photo == null || isBusy()) return;
+        if (peer == null || photo == null) return;
 
+        if (isBusy()) {
+            if (isFull()) tell("mcphone.chat.image_too_fast");
+            else QUEUE.add(new Queued(peer, photo));
+            return;
+        }
+        start(peer, photo);
+    }
+
+    /**
+     * 闸一开就把排在头里的那张发出去。挂在客户端 tick 上，见 MCphoneClient。
+     *
+     * 挂 tick 而不是挂会话界面的每帧：玩家点完表情就退出手机是常事，那一张照样该发出去。
+     */
+    public static void onClientTick(ClientTickEvent.Post event) {
+        if (QUEUE.isEmpty() || isBusy()) return;
+
+        Queued next = QUEUE.poll();
+        start(next.peer(), next.photo());
+    }
+
+    /** 真的开始发这一张：压缩在后台，发包回渲染线程 */
+    private static void start(UUID peer, Path photo) {
         sendingSince = System.currentTimeMillis();
         pendingPng = null;
 
@@ -90,16 +174,43 @@ public final class ChatImageSender {
         });
     }
 
-    /** 压到上限之内；每一档都压不下来返回 null */
+    /**
+     * 压到上限之内；每一档都压不下来返回 null。在后台线程。
+     *
+     * 读盘、解码、缩到最大那一档，这三件事一共只做一次：往下几档都从那张 384 的再缩。
+     * 降档是为了压体积，不是为了更清楚，而 384 → 320 只有 0.83 倍，一次插值就够
+     * （{@link ImageCodec#scaleDown} 的逐级减半是给"缩掉一半以上"准备的）。
+     */
     private static ImageCodec.Encoded encodeWithinLimit(Path photo) {
-        ImageCodec.Encoded encoded = ImageCodec.encodePng(photo, ChatImage.MAX_SIDE);
-        if (encoded != null && encoded.png().length <= ChatImage.MAX_BYTES) return encoded;
+        String key = cacheKey(photo);
+        if (key != null) {
+            ImageCodec.Encoded cached = ENCODED.get(key);
+            if (cached != null) return cached;
+        }
 
-        for (int side : FALLBACK_SIDES) {
-            encoded = ImageCodec.encodePng(photo, side);
-            if (encoded != null && encoded.png().length <= ChatImage.MAX_BYTES) return encoded;
+        BufferedImage src = ImageCodec.read(photo);
+        if (src == null) return null;
+
+        BufferedImage base = ImageCodec.scaleDown(src, ChatImage.MAX_SIDE);
+
+        for (int side : SIDES) {
+            ImageCodec.Encoded encoded = ImageCodec.encodePng(base, side);
+            if (encoded != null && encoded.png().length <= ChatImage.MAX_BYTES) {
+                if (key != null) ENCODED.put(key, encoded);
+                return encoded;
+            }
         }
         return null;
+    }
+
+    /** {@link #ENCODED} 的键：路径 + 改动时间 + 大小。属性读不到就返回 null，这一张不缓存 */
+    private static String cacheKey(Path photo) {
+        try {
+            return photo.toAbsolutePath() + "|" + Files.getLastModifiedTime(photo).toMillis()
+                    + "|" + Files.size(photo);
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
     }
 
     /** 切片发上去。在渲染线程 */
@@ -151,11 +262,17 @@ public final class ChatImageSender {
         finish();
     }
 
-    /** 退出世界时清掉，免得下一个服务器里冒出一次莫名其妙的"发送中"，也不必带着冷却过去 */
+    /**
+     * 退出世界时清掉，免得下一个服务器里冒出一次莫名其妙的"发送中"，也不必带着冷却过去。
+     *
+     * 排着的那几张一并倒掉：收件人是上一个服务器里的人，换个地方发过去没有意义。
+     * 压好的字节留着（{@link #ENCODED}）——那只跟文件有关，跟在哪个服务器无关。
+     */
     public static void clear() {
         sendingSince = 0L;
         pendingPng = null;
         readyAt = 0L;
+        QUEUE.clear();
     }
 
     /** 一次上传就此结束（成了、超时了、或者压根没发出去），并开始冷却 */
