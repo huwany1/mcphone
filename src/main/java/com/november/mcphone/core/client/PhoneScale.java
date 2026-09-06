@@ -40,6 +40,27 @@ public final class PhoneScale {
 
     private static int percent = DEFAULT_PERCENT;
 
+    /**
+     * 上一次真的写进配置的值。
+     *
+     * 拖那条时每动一下都会改 percent，而落盘是要写文件的——拖一次能写几十次。
+     * 所以拖动只改这个类里的数（下一帧就生效），松手才落一次盘，见 {@link #commit()}。
+     */
+    private static int savedPercent = DEFAULT_PERCENT;
+
+    /**
+     * 只用"清晰的倍数"。
+     *
+     * 手机是套在原版那个投影上放大的，所以字模的每个纹素最终占
+     * {@code guiScale × 我们的倍数} 个物理像素——文字用的是 NEAREST 过滤，这个乘积
+     * 是整数才横平竖直，不是整数就有的列占两像素、有的占三像素，细线时粗时细。
+     *
+     * 开着的时候，可选的档位对齐到 {@code 1/guiScale}：GUI 缩放 2 → 100/150/200…，
+     * 缩放 3 → 100/133/166…，缩放 4 → 100/125/150…。这等于把原版"只能整数 GUI 缩放"
+     * 那条路的唯一好处拿了过来，又不必去动 Window 的全局缩放。
+     */
+    private static boolean snap = true;
+
     public static int percent() {
         return percent;
     }
@@ -52,19 +73,89 @@ public final class PhoneScale {
     /** 配置读进来时推给这里。渲染每帧都要问，不能去碰配置 */
     static void load(int value) {
         percent = clamp(value);
+        savedPercent = percent;
     }
 
-    /** 玩家在设置里改了。先落到这里（下一帧就是新的），再存盘 */
+    static void loadSnap(boolean value) {
+        snap = value;
+    }
+
+    public static boolean snapEnabled() {
+        return snap;
+    }
+
+    public static void setSnap(boolean value) {
+        if (snap == value) return;
+        snap = value;
+        ClientConfig.saveUiScaleSnap(value);
+        // 打开时把当前值也对齐一下，否则开关写着"贴合"而屏幕上还是那个不整的倍数
+        if (snap) setPercent(percent);
+    }
+
+    /** 一档"清晰"是多少百分比：guiScale 2 → 50，3 → 33.3，4 → 25 */
+    public static double crispStepPercent() {
+        double gui = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale();
+        return gui > 0 ? 100.0 / gui : 100.0;
+    }
+
+    /**
+     * 把一个百分比对齐到最近的清晰档。关掉贴合时原样返回。
+     *
+     * 两端要单独处理：对齐之后可能掉到 75 以下或 300 以上，那时候取范围内最靠边的
+     * 那个【清晰档】，而不是直接夹成 75 或 300——夹出来的数正好是不清晰的。
+     */
+    public static int snapPercent(int value) {
+        if (!snap) return clamp(value);
+
+        double step = crispStepPercent();
+        if (step <= 0) return clamp(value);
+
+        int snapped = (int) Math.round(Math.round(value / step) * step);
+        if (snapped < MIN_PERCENT) snapped = (int) Math.round(Math.ceil(MIN_PERCENT / step) * step);
+        if (snapped > MAX_PERCENT) snapped = (int) Math.round(Math.floor(MAX_PERCENT / step) * step);
+        return clamp(snapped);
+    }
+
+    /** 改一个值并立刻落盘。点加减键、点还原走这条 */
     public static void setPercent(int value) {
-        int wanted = clamp(value);
-        if (wanted == percent) return;
-        percent = wanted;
+        preview(value);
+        commit();
+    }
+
+    /** 只改不落盘。拖那条时每一步走这条，几十次拖动只对应一次写盘 */
+    public static void preview(int value) {
+        percent = snapPercent(value);
+    }
+
+    /** 松手时把拖出来的值落盘。没变过就什么都不做，省一次写盘 */
+    public static void commit() {
+        if (percent == savedPercent) return;
+        savedPercent = percent;
         ClientConfig.saveUiScale(percent);
     }
 
-    /** 加减键走这条，直接夹在两端不回绕：回绕会让人以为点漏了 */
+    /**
+     * 加减键。开着贴合时走的是"往那个方向挪一个清晰档"，而不是加减 25%——
+     * 后者在 GUI 缩放 2 下会出现"点了没反应"：125 对齐回 150 或 100，看着像点漏了。
+     */
     public static void nudge(int deltaPercent) {
-        setPercent(percent + deltaPercent);
+        if (!snap) {
+            setPercent(percent + deltaPercent);
+            return;
+        }
+
+        double step = crispStepPercent();
+        int index = (int) Math.round(percent / step);
+        int target = snapPercent((int) Math.round((index + (deltaPercent > 0 ? 1 : -1)) * step));
+
+        // 方向不能反。手改过配置、或者刚换过 GUI 缩放时，当前值可能不在任何一个清晰档上，
+        // 对齐之后有可能落到当前值的另一侧——那时候按「−」会变大，玩家只会以为是坏了。
+        // 这一下就不动：这种情况只有一种，就是当前值已经在这个方向的尽头之外
+        // （例如 GUI 缩放 2 时停在 80%，比最小的那个清晰档 100% 还小，再往下没有档了）
+        if (deltaPercent > 0 && target < percent) return;
+        if (deltaPercent < 0 && target > percent) return;
+
+        setPercent(target);
     }
 
     public static int clamp(int value) {

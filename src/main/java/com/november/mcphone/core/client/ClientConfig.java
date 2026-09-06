@@ -57,6 +57,9 @@ public final class ClientConfig {
     /** 手机界面开多大，整数百分比。解析与夹取见 {@link PhoneScale} */
     public static final ModConfigSpec.IntValue UI_SCALE;
 
+    /** 界面大小只在"清晰的倍数"上取值。为什么这样更清楚见 {@link PhoneScale#snapPercent} */
+    public static final ModConfigSpec.BooleanValue UI_SCALE_SNAP;
+
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
@@ -121,6 +124,16 @@ public final class ClientConfig {
                 .defineInRange("uiScale", PhoneScale.DEFAULT_PERCENT,
                         PhoneScale.MIN_PERCENT, PhoneScale.MAX_PERCENT);
 
+        UI_SCALE_SNAP = builder
+                .comment("界面大小只在『清晰的倍数』上取值。",
+                        "字是位图，GUI 缩放 × 界面大小 是整数时每个像素才方方正正；",
+                        "开着的时候档位对齐到 1/GUI缩放（缩放 2 → 100/150/200…）。",
+                        "关掉就能填任意数，代价是非整数倍下细线时粗时细。",
+                        "Snap the phone UI size to values that keep text pixel-perfect",
+                        "(guiScale x uiScale must be a whole number).")
+                .translation("mcphone.config.ui_scale_snap")
+                .define("uiScaleSnap", true);
+
         SPEC = builder.build();
     }
 
@@ -159,6 +172,7 @@ public final class ClientConfig {
 
         // 界面倍数更甚：每一帧、每一次鼠标换算都要用
         PhoneScale.load(UI_SCALE.get());
+        PhoneScale.loadSnap(UI_SCALE_SNAP.get());
     }
 
     //  手机界面 → 配置
@@ -230,6 +244,13 @@ public final class ClientConfig {
     public static void saveUiScale(int percent) {
         if (!SPEC.isLoaded()) return;
         UI_SCALE.set(PhoneScale.clamp(percent));
+        SPEC.save();
+    }
+
+    /** 「贴合清晰倍数」那个开关翻了面 */
+    public static void saveUiScaleSnap(boolean value) {
+        if (!SPEC.isLoaded()) return;
+        UI_SCALE_SNAP.set(value);
         SPEC.save();
     }
 

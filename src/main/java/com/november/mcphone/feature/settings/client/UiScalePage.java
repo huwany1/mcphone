@@ -39,8 +39,9 @@ public final class UiScalePage {
     private static final int DRAG_SNAP = 5;
 
     /** 上一帧算出来的几何，点击与拖动时复用 */
+    private int rowX, rowW;
     private int minusX, plusX, rowY, barX, barW;
-    private int resetY;
+    private int snapY, resetY;
 
     /** 正拖着那个条 */
     private boolean dragging;
@@ -50,8 +51,11 @@ public final class UiScalePage {
         dragging = false;
     }
 
+    /** 离开这一页。拖着条被导航栏带走时也要落一次盘，否则这次拖动白拖 */
     public void close() {
+        if (!dragging) return;
         dragging = false;
+        PhoneScale.commit();
     }
 
     public void render(GuiGraphics g, int phoneLeft, int phoneTop,
@@ -76,6 +80,8 @@ public final class UiScalePage {
 
         //  加减键 + 进度条 
         rowY = y;
+        rowX = x;
+        rowW = w;
         minusX = x;
         plusX = x + w - BTN;
         barX = x + BTN + 4;
@@ -106,12 +112,36 @@ public final class UiScalePage {
             g.drawString(font, GuiUtil.truncate(font,
                             Component.translatable("mcphone.settings.ui_scale_clamped", real + "%").getString(), w),
                     x, y, FontPalette.notice(), false);
+        } else if (PhoneScale.snapEnabled()) {
+            // 贴合开着时说清楚一档是多少，否则玩家会觉得加减键"跳得没规律"
+            int step = (int) Math.round(PhoneScale.crispStepPercent());
+            g.drawString(font, GuiUtil.truncate(font,
+                            Component.translatable("mcphone.settings.ui_scale_step", step + "%").getString(), w),
+                    x, y, FontPalette.dim(), false);
         } else {
             g.drawString(font, GuiUtil.truncate(font,
                             Component.translatable("mcphone.settings.ui_scale_hint").getString(), w),
                     x, y, FontPalette.dim(), false);
         }
         y += font.lineHeight + 6;
+
+        //  只用清晰的倍数 
+        snapY = y;
+        boolean snapHovered = GuiUtil.hit(mouseX, mouseY, x, snapY, w, BTN);
+        if (snapHovered) g.fill(x, snapY, x + w, snapY + BTN, PhoneTheme.COLOR_ROW_HOVER);
+
+        String snapValue = Component.translatable(PhoneScale.snapEnabled()
+                ? "mcphone.gui.on" : "mcphone.gui.off").getString();
+        int snapValueW = font.width(snapValue);
+        int snapTextY = snapY + (BTN - font.lineHeight) / 2;
+        g.drawString(font, snapValue, x + w - snapValueW - 2, snapTextY,
+                PhoneScale.snapEnabled() ? FontPalette.confirm() : FontPalette.dim(), false);
+        g.drawString(font, GuiUtil.truncate(font,
+                        Component.translatable("mcphone.settings.ui_scale_snap").getString(),
+                        w - snapValueW - 8),
+                x + 2, snapTextY, FontPalette.body(), false);
+
+        y += BTN + 4;
 
         //  还原默认 
         resetY = y;
@@ -148,7 +178,11 @@ public final class UiScalePage {
             PhoneScale.nudge(PhoneScale.STEP_PERCENT);
             return;
         }
-        if (GuiUtil.hit(mx, my, minusX, resetY, barW + (BTN + 4) * 2, BTN)) {
+        if (GuiUtil.hit(mx, my, rowX, snapY, rowW, BTN)) {
+            PhoneScale.setSnap(!PhoneScale.snapEnabled());
+            return;
+        }
+        if (GuiUtil.hit(mx, my, rowX, resetY, rowW, BTN)) {
             PhoneScale.setPercent(PhoneScale.DEFAULT_PERCENT);
             return;
         }
@@ -166,8 +200,11 @@ public final class UiScalePage {
         return true;
     }
 
+    /** 松手：把拖出来的那个值落一次盘。拖的过程中一次都不写，见 PhoneScale.preview */
     public void mouseReleased() {
+        if (!dragging) return;
         dragging = false;
+        PhoneScale.commit();
     }
 
     private void applyFromX(double mx) {
@@ -175,6 +212,6 @@ public final class UiScalePage {
         float t = (float) Math.clamp((mx - barX) / barW, 0.0, 1.0);
         int raw = Math.round(PhoneScale.MIN_PERCENT
                 + t * (PhoneScale.MAX_PERCENT - PhoneScale.MIN_PERCENT));
-        PhoneScale.setPercent(Math.round((float) raw / DRAG_SNAP) * DRAG_SNAP);
+        PhoneScale.preview(Math.round((float) raw / DRAG_SNAP) * DRAG_SNAP);
     }
 }
