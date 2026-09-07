@@ -55,6 +55,11 @@ public class MCphone {
         modContainer.registerConfig(net.neoforged.fml.config.ModConfig.Type.SERVER,
                 com.november.mcphone.core.ServerConfig.SPEC, "mcphone-server.toml");
 
+        // 「终端」App 接哪几家存储模组，setup 阶段才点数 —— 那时所有模组都构造完了。
+        // 为什么不能更早，见 Terminals.onCommonSetup
+        modEventBus.addListener(
+                com.november.mcphone.feature.terminal.integration.Terminals::onCommonSetup);
+
         // 放在自家注册之后：兼容模块可能要看我们已经注册了什么
         com.november.mcphone.compat.CompatModules.init(modEventBus);
 

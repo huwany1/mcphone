@@ -4,8 +4,10 @@ import com.november.mcphone.MCphone;
 import com.november.mcphone.feature.chat.ChatReadState;
 import com.november.mcphone.feature.notes.NoteList;
 import com.november.mcphone.feature.settings.WallpaperData;
+import com.november.mcphone.feature.terminal.TerminalSlot;
 import com.november.mcphone.feature.store.PurchasedApps;
 import com.november.mcphone.feature.music.DiscState;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
@@ -51,6 +53,24 @@ public final class ModAttachments {
             "personal_notes",
             () -> AttachmentType.builder(() -> NoteList.EMPTY)
                     .serialize(NoteList.CODEC)
+                    .copyOnDeath()
+                    .build()
+    );
+
+    /**
+     * 手机终端卡槽里那台终端（「终端」App 用）。空的时候是 {@link ItemStack#EMPTY}。
+     *
+     * 这一条是这里唯一 {@code sync()} 的附件，不能省：AE2 与 RS 的终端菜单在客户端会被
+     * 重建，重建时要在【客户端】再问一次"那台终端在哪儿"。客户端拿到空的，菜单当场判失效
+     * 关掉——表现是"点了闪一下又回来"。为什么不用 DataComponent 见 {@link TerminalSlot}。
+     *
+     * copyOnDeath：和唱片仓同一个道理，手机里的东西不该因为死一次就没。
+     */
+    public static final Supplier<AttachmentType<ItemStack>> PHONE_TERMINAL = ATTACHMENT_TYPES.register(
+            "phone_terminal",
+            () -> AttachmentType.builder(() -> ItemStack.EMPTY)
+                    .serialize(ItemStack.OPTIONAL_CODEC)
+                    .sync(ItemStack.OPTIONAL_STREAM_CODEC)
                     .copyOnDeath()
                     .build()
     );

@@ -24,6 +24,7 @@ import com.november.mcphone.feature.notes.net.NotesClientCache;
 import com.november.mcphone.feature.settings.client.WallpaperStore;
 import com.november.mcphone.feature.store.net.StoreClientCache;
 import com.november.mcphone.feature.clock.client.PlayTime;
+import com.november.mcphone.feature.terminal.client.TerminalSlotScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.neoforged.api.distmarker.Dist;
@@ -135,6 +136,7 @@ public class MCphoneClient {
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.ENDER_CHEST.get(), PhoneContainerScreen::new);
         event.register(ModMenus.DISC_BAY.get(), DiscBayScreen::new);
+        event.register(ModMenus.TERMINAL_SLOT.get(), TerminalSlotScreen::new);
     }
 
     @SubscribeEvent

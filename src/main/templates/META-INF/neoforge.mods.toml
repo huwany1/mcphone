@@ -122,6 +122,53 @@ player, and an open SPI-based app system that add-on mods can plug into.
     ordering="AFTER"
     side="BOTH"
 
+# 三家存储模组 —— 可选：装了哪家，「终端」App 就能开哪家的终端；一家都没装
+# 时那一格连应用商店里都不会出现。
+#
+# 为什么三条都是 optional 而不是把 AE2 写成 required：这一格要的是"有一家就行"，
+# 而 mods.toml 表达不了"三选一"。三条 required 是要求全装；只把 AE2 写成 required
+# 又等于把另外两家降级成陪衬。"至少要有一家"这件事由 TerminalApp.isAvailable() 兜。
+#
+# 都不写下限，和上面 Curios、Waystones 同一个道理：我们用的是各家"替玩家打开这台
+# 终端"的入口（AE2 的 openFromInventory、RS 的 SlotReferenceHandlerItem.use、
+# Tom's 的 WirelessTerminal.open），都是存在很久的东西，钉死版本只会误伤用旧版的
+# 服主 —— 而版本对不上的代价是"游戏拒绝启动"，比"这一个 App 不好使"严重得多。
+[[dependencies.${mod_id}]]
+    modId="ae2"
+    type="optional"
+    reason="装上后「终端」App 能直接打开 AE2 的无线终端"
+    versionRange="[0,)"
+    # 必须在它之后加载：我们要往它的 locator 注册表里登记"终端在手机卡槽里"
+    ordering="AFTER"
+    side="BOTH"
+
+# AE2WTLib（AE2 无线终端）—— 可选依赖里的可选依赖。没装它照样能开 AE2 自己的
+# 无线终端；装了就必须认它，否则它的终端会被开成【普通】ME 终端（没有合成格），
+# 不崩不报错。见 Ae2wtlibSupport。
+[[dependencies.${mod_id}]]
+    modId="ae2wtlib"
+    type="optional"
+    reason="装上后它的各种无线终端也能从手机上打开"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="refinedstorage"
+    type="optional"
+    reason="装上后「终端」App 能打开 RS 的无线网格与便携网格"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="toms_storage"
+    type="optional"
+    reason="装上后「终端」App 能打开 Tom's 的高级无线终端"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

@@ -41,6 +41,18 @@ repositories {
             includeGroup "maven.modrinth"
         }
     }
+
+    // AE2WTLib 的 api 模块 —— 只有这一个 group 从这儿取。
+    //
+    // ⚠ AE2 本体【不能】从这儿取：modmaven 的 appeng 镜像停在 19.0.4-alpha，
+    // 1.21.1 要的 19.2.x 一个都没有。
+    maven {
+        name = "modmaven"
+        url = "https://modmaven.dev"
+        content {
+            includeGroup "de.mari_023"
+        }
+    }
 }
 
 base {
@@ -192,6 +204,33 @@ dependencies {
     // 不写 localRuntime：开发环境里没有任何模组带书，装上它只会多加载一个模组，
     // 那条路径要真跑，把整合包里的 jar 丢进 run/mods 更接近现场。
     compileOnly "maven.modrinth:patchouli:${patchouli_version}"
+
+    // 三家存储模组 —— 可选依赖：装了哪家，「终端」App 就能开哪家的终端；一家都
+    // 没装时那一格不上主屏。全部引用都关在 feature/terminal/integration 下面，
+    // 运行期在不在场由 ModList 判断，而判断只在 Terminals.discover() 那三行里。
+    //
+    // localRuntime 三家一起装：只有把它们真装在同一个开发环境里，才验得到
+    // "同时装了两家""只装了一家"这些真实组合。嫌 runClient 沉就临时注掉，
+    // 但发版前要三家都跑一遍。
+    compileOnly "maven.modrinth:ae2:${ae2_version}"
+    localRuntime "maven.modrinth:ae2:${ae2_version}"
+
+    // GuideME —— AE2 自己的前置，我们一行不碰。两处都要放，理由见 gradle.properties。
+    compileOnly "maven.modrinth:guideme:${guideme_version}"
+    localRuntime "maven.modrinth:guideme:${guideme_version}"
+
+    // AE2WTLib —— 编译期只要 api 模块（就一个 ItemWT 类型），运行期在开发环境里
+    // 装整个模组，好把"装了它"那条路真跑一遍。
+    compileOnly "de.mari_023:ae2wtlib_api:${ae2wtlib_version}"
+    localRuntime "maven.modrinth:applied-energistics-2-wireless-terminals:${ae2wtlib_version}"
+
+    compileOnly "maven.modrinth:refined-storage:${refinedstorage_version}"
+    localRuntime "maven.modrinth:refined-storage:${refinedstorage_version}"
+
+    // 坐标上是 1.21-2.4.2，mods.toml 里自报的是 2.4.2 —— 两个数不一样，
+    // 理由见 gradle.properties。
+    compileOnly "maven.modrinth:toms-storage:${toms_version}"
+    localRuntime "maven.modrinth:toms-storage:${toms_version}"
 
     // JavaMP3 —— MP3 解码。这是【必需】依赖，不是可选联动：玩家往音乐
     // 目录里丢一个 mp3，不该要求他再去装别的模组。
