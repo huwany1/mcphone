@@ -9,6 +9,7 @@ import com.november.mcphone.core.client.PhoneTheme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 
 /**
  * 「设置 → 副手 HUD」 —— 手机放进副手时挂在画面上的那一部。
@@ -156,7 +157,7 @@ public final class HudPage {
                     barX, barY, fill, BAR_H, PhoneTheme.COLOR_SLIDER_FILL);
         }
 
-        int knobX = Math.clamp(barX + fill - KNOB_W / 2, barX, barX + barW - KNOB_W);
+        int knobX = Mth.clamp(barX + fill - KNOB_W / 2, barX, barX + barW - KNOB_W);
         PhoneSkin.drawOrFill(g, PhoneSkin.Element.SLIDER_KNOB,
                 knobX, scaleY, KNOB_W, BTN, PhoneTheme.COLOR_SLIDER_KNOB);
 
@@ -295,7 +296,7 @@ public final class HudPage {
 
     private void applyFromX(double mx) {
         if (barW <= 0) return;
-        float t = (float) Math.clamp((mx - barX) / barW, 0.0, 1.0);
+        float t = (float) Mth.clamp((mx - barX) / barW, 0.0, 1.0);
         int raw = Math.round(PhoneHudPlacement.MIN_PERCENT
                 + t * (PhoneHudPlacement.MAX_PERCENT - PhoneHudPlacement.MIN_PERCENT));
         PhoneHudPlacement.previewPercent(Math.round((float) raw / DRAG_SNAP) * DRAG_SNAP);

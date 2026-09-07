@@ -1,5 +1,7 @@
 package com.november.mcphone.core.client;
 
+import net.minecraft.util.Mth;
+
 /**
  * 手机界面开多大 —— 玩家自己定的那个倍数。
  *
@@ -159,7 +161,7 @@ public final class PhoneScale {
     }
 
     public static int clamp(int value) {
-        return Math.clamp(value, MIN_PERCENT, MAX_PERCENT);
+        return Mth.clamp(value, MIN_PERCENT, MAX_PERCENT);
     }
 
     /**

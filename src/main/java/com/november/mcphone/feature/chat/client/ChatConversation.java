@@ -25,6 +25,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.Mth;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.time.Instant;
@@ -443,7 +444,7 @@ public final class ChatConversation {
 
         final int viewH = bottom - top;
         maxScroll = Math.max(0, contentH - viewH);
-        scrollPx = Math.clamp(scrollPx, 0, maxScroll);
+        scrollPx = Mth.clamp(scrollPx, 0, maxScroll);
 
         // 不足一屏从顶往下排；超出时贴底，scrollPx 把内容往下推露出更早的消息
         int y = contentH <= viewH ? top : bottom - contentH + scrollPx;
@@ -818,7 +819,7 @@ public final class ChatConversation {
 
         if (maxScroll <= 0) return false;
 
-        scrollPx = Math.clamp(scrollPx + (int) (scrollY * SCROLL_STEP), 0, maxScroll);
+        scrollPx = Mth.clamp(scrollPx + (int) (scrollY * SCROLL_STEP), 0, maxScroll);
         return true;
     }
 

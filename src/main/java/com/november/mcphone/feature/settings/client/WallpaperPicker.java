@@ -8,6 +8,7 @@ import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.List;
@@ -163,7 +164,7 @@ public final class WallpaperPicker {
         final int totalRows = (wallpapers.size() + COLS - 1) / COLS;
         // 删掉几张图之后行数会变少，不夹一下就会停在空白处
         maxScrollRow = Math.max(0, totalRows - visibleRows);
-        scrollRow = Math.clamp(scrollRow, 0, maxScrollRow);
+        scrollRow = Mth.clamp(scrollRow, 0, maxScrollRow);
 
         int x = contentX;
         int y = contentY;

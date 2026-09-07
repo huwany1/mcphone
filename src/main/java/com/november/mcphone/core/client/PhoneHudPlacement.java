@@ -1,5 +1,7 @@
 package com.november.mcphone.core.client;
 
+import net.minecraft.util.Mth;
+
 /**
  * 手机挂在 HUD 上的什么地方、多大。
  *
@@ -187,11 +189,11 @@ public final class PhoneHudPlacement {
     }
 
     public static int clampPercent(int value) {
-        return Math.clamp(value, MIN_PERCENT, MAX_PERCENT);
+        return Mth.clamp(value, MIN_PERCENT, MAX_PERCENT);
     }
 
     public static int clampOffset(int value) {
-        return Math.clamp(value, -MAX_OFFSET, MAX_OFFSET);
+        return Mth.clamp(value, -MAX_OFFSET, MAX_OFFSET);
     }
 
     //  解算
@@ -266,8 +268,8 @@ public final class PhoneHudPlacement {
         int w = width(windowWidth, windowHeight);
         int h = height(windowWidth, windowHeight);
         return derive(
-                Math.clamp(x, 0, Math.max(0, windowWidth - w)),
-                Math.clamp(y, 0, Math.max(0, windowHeight - h)),
+                Mth.clamp(x, 0, Math.max(0, windowWidth - w)),
+                Mth.clamp(y, 0, Math.max(0, windowHeight - h)),
                 windowWidth, windowHeight);
     }
 

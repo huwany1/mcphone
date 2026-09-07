@@ -13,6 +13,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.neoforged.fml.ModList;
 
 import java.util.LinkedHashMap;
@@ -84,7 +85,7 @@ public final class AboutPage {
         final int top = y;
         final int bottom = phoneTop + screenH - navH;
 
-        scrollPx = Math.clamp(scrollPx, 0, maxScroll);
+        scrollPx = Mth.clamp(scrollPx, 0, maxScroll);
         y -= scrollPx;
 
         // 裁掉滚出去的部分，否则正文会画到状态栏和导航栏上
@@ -145,7 +146,7 @@ public final class AboutPage {
     public boolean mouseScrolled(double scrollY, Font font) {
         int step = font.lineHeight * 3;
         int before = scrollPx;
-        scrollPx = Math.clamp(scrollPx - (int) (scrollY * step), 0, maxScroll);
+        scrollPx = Mth.clamp(scrollPx - (int) (scrollY * step), 0, maxScroll);
         return scrollPx != before;
     }
 

@@ -15,6 +15,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.client.settings.KeyModifier;
 import org.lwjgl.glfw.GLFW;
@@ -183,7 +184,7 @@ public final class AppManagerDetail {
         final int bodyBottom = bottom - BUTTON_H * actionRows - font.lineHeight - 8 - actionRows * 2;
         final int bodyTop = y;
 
-        scrollPx = Math.clamp(scrollPx, 0, maxScroll);
+        scrollPx = Mth.clamp(scrollPx, 0, maxScroll);
         y -= scrollPx;
 
         // 越界的部分交给 scissor 裁，不再"放不下就不画"——那样卸载键上方会凭空少几行
@@ -220,7 +221,7 @@ public final class AppManagerDetail {
     /** 滚轮翻正文。头部与底下那两行操作不跟着滚：它们得一直够得着 */
     public boolean mouseScrolled(double scrollY, Font font) {
         int before = scrollPx;
-        scrollPx = Math.clamp(scrollPx - (int) (scrollY * font.lineHeight * 3), 0, maxScroll);
+        scrollPx = Mth.clamp(scrollPx - (int) (scrollY * font.lineHeight * 3), 0, maxScroll);
         return scrollPx != before;
     }
 

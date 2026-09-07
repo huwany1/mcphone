@@ -15,6 +15,7 @@ import com.november.mcphone.feature.music.net.OpenDiscBayPacket;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -341,7 +342,7 @@ public final class MusicPage {
         if (total <= 0L) return;
 
         long elapsed = LocalPlayback.elapsedMillis();
-        float ratio = Math.clamp(elapsed / (float) total, 0.0F, 1.0F);
+        float ratio = Mth.clamp(elapsed / (float) total, 0.0F, 1.0F);
         g.fill(x, y, x + (int) (w * ratio), y + PROGRESS_H, PhoneTheme.COLOR_MUSIC_PROGRESS);
     }
 
@@ -482,6 +483,6 @@ public final class MusicPage {
         int visible = Math.max(1, availableHeight / (font.lineHeight + ROW_EXTRA));
 
         maxScroll = Math.max(0, total - visible);
-        scrollOffset = Math.clamp(scrollOffset, 0, maxScroll);
+        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
     }
 }

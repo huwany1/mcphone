@@ -597,3 +597,60 @@ tasks.register('assertTests') {
 }
 
 tasks.named('check').configure { dependsOn tasks.named('assertTests') }
+
+// ============================================================
+//  Java 21 专有 API 校验
+// ============================================================
+//
+// 1.20.1 那一支跑在 Java 17 上。源码里一旦出现 21 才有的东西，那一支就编不过，
+// 而这边编得好好的，什么都不会说。
+//
+// 眼下只卡一样：Math.clamp（Java 21 新增）。它不是随便挑的：
+//
+//   - 它是【库方法】不是语法，除了 grep 没有别的东西扫得出来
+//   - 报错是 cannot find symbol，看着像打错字，跟"Java 版本"四个字毫无关联
+//   - IDE 的检查会主动建议拿它替掉 Mth.clamp —— 也就是说，把它改回来是一个
+//     完全合理、不会有人拦的动作。这条规矩不写成断言，就只活在某一次提交的意图里
+//
+// 换法：net.minecraft.util.Mth.clamp，int/long/float/double 四个重载都在。
+//
+// 有一处行为差异，知道就行，不必改回去：Math.clamp 在 min > max 时抛
+// IllegalArgumentException，Mth.clamp 不抛，静默返回某一侧边界。也就是说
+// Math.clamp 顺带充当的那个"边界算反了就当场炸"的断言没有了。换的时候 28 处
+// 上界逐个查过：滚动量全是 Math.max(0, …) 兜住的，只有两个滑块把手
+// （HudPage、UiScalePage）在窗口窄到 barW < KNOB_W 时能倒置——而那一处正好是
+// 从"渲染里抛异常炸掉整个界面"退化成"把手贴在左边"，方向是变安全的。
+//
+// 还没卡进来的，等 switch 那一处退回 instanceof 链之后一起加：switch 里的
+// 类型模式与记录模式（JEP 440/441，core/PhoneLocation 眼下还在用），字符串模板。
+tasks.register('verifyNoJava21Api') {
+    description = '校验源码里没有 Java 21 才有的 API（1.20.1 那一支跑在 17 上）'
+    group = 'verification'
+
+    // docs/ 也要扫：AddonApiExamples 是给附属作者照抄的示例，它带头用错更糟
+    def scanned = files(
+            fileTree('src/main/java') { include '**/*.java' },
+            fileTree('docs') { include '**/*.java' })
+    def root = projectDir
+
+    inputs.files(scanned)
+
+    doLast {
+        def offenders = []
+        scanned.each { f ->
+            def rel = root.toPath().relativize(f.toPath()).toString()
+            f.eachLine('UTF-8') { line, n ->
+                if (line.contains('Math.clamp(')) {
+                    offenders << "${rel}:${n}  Math.clamp —— 换成 net.minecraft.util.Mth.clamp"
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException(
+                    "用到了 Java 21 才有的 API，1.20.1 那一支会编不过：\n  " + offenders.join('\n  '))
+        }
+        logger.lifecycle('Java 21 专有 API 校验通过')
+    }
+}
+
+tasks.named('check').configure { dependsOn tasks.named('verifyNoJava21Api') }

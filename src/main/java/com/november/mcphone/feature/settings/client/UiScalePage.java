@@ -8,6 +8,7 @@ import com.november.mcphone.core.client.PhoneTheme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 
 /**
  * 「设置 → 界面大小」 —— 手机开出来多大。
@@ -119,7 +120,7 @@ public final class UiScalePage {
         }
 
         // 滑块压在填充的末端，比槽高一圈——拖起来看得见自己抓的是什么
-        int knobX = Math.clamp(barX + fill - KNOB_W / 2, barX, barX + barW - KNOB_W);
+        int knobX = Mth.clamp(barX + fill - KNOB_W / 2, barX, barX + barW - KNOB_W);
         PhoneSkin.drawOrFill(g, PhoneSkin.Element.SLIDER_KNOB,
                 knobX, rowY, KNOB_W, BTN, PhoneTheme.COLOR_SLIDER_KNOB);
 
@@ -249,7 +250,7 @@ public final class UiScalePage {
 
     private void applyFromX(double mx) {
         if (barW <= 0) return;
-        float t = (float) Math.clamp((mx - barX) / barW, 0.0, 1.0);
+        float t = (float) Mth.clamp((mx - barX) / barW, 0.0, 1.0);
         int raw = Math.round(PhoneScale.MIN_PERCENT
                 + t * (PhoneScale.MAX_PERCENT - PhoneScale.MIN_PERCENT));
         PhoneScale.preview(Math.round((float) raw / DRAG_SNAP) * DRAG_SNAP);

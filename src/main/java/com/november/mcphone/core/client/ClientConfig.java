@@ -5,6 +5,7 @@ import com.november.mcphone.feature.camera.client.CameraFlash;
 import com.november.mcphone.feature.music.PlayMode;
 import com.november.mcphone.feature.music.client.MusicController;
 import com.november.mcphone.feature.music.client.playback.LocalPlayback;
+import net.minecraft.util.Mth;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
@@ -355,7 +356,7 @@ public final class ClientConfig {
      */
     public static void saveMusicVolume(float volume) {
         if (!SPEC.isLoaded()) return;
-        MUSIC_VOLUME.set(Math.round(Math.clamp(volume, 0.0F, 1.0F) * 100));
+        MUSIC_VOLUME.set(Math.round(Mth.clamp(volume, 0.0F, 1.0F) * 100));
         SPEC.save();
     }
 }

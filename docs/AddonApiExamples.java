@@ -16,6 +16,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.common.Tags;
@@ -133,7 +134,7 @@ public final class AddonApiExamples {
         public void render(PhoneCanvas c) {
             int contentH = rows.size() * ROW_H;
             int maxScroll = Math.max(0, contentH - c.height());
-            scrollPx = Math.clamp(scrollPx, 0, maxScroll);
+            scrollPx = Mth.clamp(scrollPx, 0, maxScroll);
 
             // 起点在 lambda 外面算好：里面那个 y 是要变的，捕获的量必须是定的
             final int startY = c.y() - scrollPx;
