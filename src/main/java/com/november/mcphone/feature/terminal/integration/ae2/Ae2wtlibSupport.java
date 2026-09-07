@@ -26,7 +26,7 @@ import net.minecraft.world.item.ItemStack;
  * 类加载纪律
  *
  * 这个类的方法签名里<b>没有</b>任何 {@code de.mari_023} 的类型，只有 ItemStack 与 AE2 的
- * locator。{@link Ae2Integration} 用 {@code ModList.isLoaded("ae2wtlib")} 判断之后再调，
+ * locator。{@link Ae2Integration} 用 {@code ModPresence.isLoaded("ae2wtlib")} 判断之后再调，
  * invokestatic 的属主类是第一次执行到时才解析的，所以没装 AE2WTLib 的玩家永远不会加载到
  * 这个类，也就不会 NoClassDefFoundError。
  */

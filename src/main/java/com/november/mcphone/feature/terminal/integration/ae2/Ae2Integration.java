@@ -5,9 +5,9 @@ import appeng.menu.locator.ItemMenuHostLocator;
 import appeng.menu.locator.MenuLocators;
 import com.november.mcphone.feature.terminal.integration.TerminalIntegration;
 import com.november.mcphone.feature.terminal.integration.TerminalSource;
+import com.november.mcphone.platform.ModPresence;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
 
 /**
  * Applied Energistics 2 的接入 —— 无线终端，以及 AE2WTLib 的各种终端。
@@ -72,7 +72,7 @@ public final class Ae2Integration implements TerminalIntegration {
 
         // AE2WTLib 那条必须先试：它的终端也是 WirelessTerminalItem，走下面那条会开出一个
         // 错误的菜单类型（普通 ME 终端，没有合成格），而且不报错。
-        if (ModList.get().isLoaded(AE2WTLIB_MODID) && Ae2wtlibSupport.isWirelessTerminal(stack)) {
+        if (ModPresence.isLoaded(AE2WTLIB_MODID) && Ae2wtlibSupport.isWirelessTerminal(stack)) {
             return Ae2wtlibSupport.open(player, stack, locator);
         }
 

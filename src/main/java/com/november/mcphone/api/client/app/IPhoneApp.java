@@ -2,10 +2,10 @@ package com.november.mcphone.api.client.app;
 
 import com.november.mcphone.api.client.ui.IPhonePage;
 import com.november.mcphone.core.client.GuiUtil;
+import com.november.mcphone.platform.ModPresence;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.fml.ModList;
 
 import java.util.List;
 
@@ -125,7 +125,7 @@ public interface IPhoneApp {
      */
     default boolean isAvailable() {
         for (RequiredMod required : requiredMods()) {
-            if (!ModList.get().isLoaded(required.modId())) return false;
+            if (!ModPresence.isLoaded(required.modId())) return false;
         }
         return true;
     }

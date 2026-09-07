@@ -17,7 +17,7 @@ import net.minecraft.world.item.ItemStack;
  *
  * 实现类的类加载纪律
  *
- * 每个实现都会引用对方模组的类型，所以<b>实例化必须被 {@code ModList.isLoaded} 挡在外面</b>
+ * 每个实现都会引用对方模组的类型，所以<b>实例化必须被 {@code ModPresence.isLoaded} 挡在外面</b>
  * ——这件事由 {@link Terminals#discover()} 统一负责，实现类自己不判断。反过来说，实现类里
  * 可以随便引用对方的类型，因为走到那儿时对方一定在。
  *

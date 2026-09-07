@@ -1,8 +1,8 @@
 package com.november.mcphone.feature.browser.client;
 
 import com.november.mcphone.MCphone;
+import com.november.mcphone.platform.ModPresence;
 import net.minecraft.network.chat.Component;
-import net.neoforged.fml.ModList;
 
 /** 浏览器后端的挂载点：全局一个，先接上的算数，后来者被拒绝并告警。 */
 public final class BrowserBackends {
@@ -48,7 +48,7 @@ public final class BrowserBackends {
 
     /** 装了 MCEF 吗（是"装没装"，不是"此刻能不能用"） */
     public static boolean isMcefLoaded() {
-        return ModList.get().isLoaded(MCEF_MODID);
+        return ModPresence.isLoaded(MCEF_MODID);
     }
 
     /** 客户端启动时调一次。判断与真正 new 分在两个方法里，别把 installMcef 并回来（理由见 IBrowserBackend） */

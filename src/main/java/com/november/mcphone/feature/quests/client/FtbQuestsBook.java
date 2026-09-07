@@ -1,7 +1,7 @@
 package com.november.mcphone.feature.quests.client;
 
 import com.november.mcphone.MCphone;
-import net.neoforged.fml.ModList;
+import com.november.mcphone.platform.ModPresence;
 
 import java.lang.reflect.Method;
 
@@ -86,7 +86,7 @@ public final class FtbQuestsBook {
      * 的类注释，那条规矩在这里一字不差地适用。
      */
     public static boolean isLoaded() {
-        return ModList.get().isLoaded(FTBQUESTS_MODID);
+        return ModPresence.isLoaded(FTBQUESTS_MODID);
     }
 
     /**

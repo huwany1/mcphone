@@ -9,12 +9,12 @@ import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.GuiUtil;
 import com.november.mcphone.core.client.PhoneScreenRegistry;
 import com.november.mcphone.core.client.PhoneTheme;
+import com.november.mcphone.platform.ModPresence;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
-import net.neoforged.fml.ModList;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -133,7 +133,7 @@ public final class AboutPage {
         // 玩家往下滚就能看到。截断是那个 bug 本身，不是它的兜底。
         for (RequiredMod mod : companionMods()) {
             y = compatRow(g, font, x, y, w, mod.displayName(),
-                    ModList.get().isLoaded(mod.modId()));
+                    ModPresence.isLoaded(mod.modId()));
         }
 
         GuiUtil.disableScissor(g);

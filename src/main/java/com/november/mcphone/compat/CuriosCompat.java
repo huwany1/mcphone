@@ -1,8 +1,8 @@
 package com.november.mcphone.compat;
 
+import com.november.mcphone.platform.ModPresence;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
 import top.theillusivec4.curios.api.CuriosApi;
 
 import java.util.Optional;
@@ -33,11 +33,11 @@ public final class CuriosCompat {
     /**
      * 装没装 Curios。
      *
-     * 不缓存：ModList 内部就是一次 map 查找，而缓存要挑一个"模组列表已经
+     * 不缓存：ModPresence 底下就是一次 map 查找，而缓存要挑一个"模组列表已经
      * 就绪"的时机去填，反而容易在加载早期取到错的值。
      */
     public static boolean isLoaded() {
-        return ModList.get().isLoaded(CURIOS_MODID);
+        return ModPresence.isLoaded(CURIOS_MODID);
     }
 
     /**

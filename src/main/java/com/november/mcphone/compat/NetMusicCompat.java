@@ -3,8 +3,8 @@ package com.november.mcphone.compat;
 import com.github.tartaricacid.netmusic.item.ItemMusicCD;
 import com.november.mcphone.MCphone;
 import com.november.mcphone.feature.music.NetSong;
+import com.november.mcphone.platform.ModPresence;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
 
 import java.util.Optional;
 
@@ -53,7 +53,7 @@ public final class NetMusicCompat {
     public static final String NETMUSIC_MODID = "netmusic";
 
     public static boolean isLoaded() {
-        return ModList.get().isLoaded(NETMUSIC_MODID);
+        return ModPresence.isLoaded(NETMUSIC_MODID);
     }
 
     /**
