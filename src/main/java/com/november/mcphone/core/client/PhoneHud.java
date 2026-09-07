@@ -120,6 +120,14 @@ public final class PhoneHud {
 
     //  注册
 
+    /**
+     * HUD 上现在挂着的那部，null ＝ 没挂。
+     *
+     * 给 {@link PhoneItemProperties} 判"手上这部亮不亮"用：挂在 HUD 上的那部屏幕是亮着的，
+     * 哪怕玩家没按 Alt。
+     */
+    static PhoneScreen hudPhone() { return phone; }
+
     /** 由 MCphoneClient 构造函数挂到模组总线 */
     public static void onRegisterLayers(RegisterGuiLayersEvent event) {
         event.registerAbove(VanillaGuiLayers.BOSS_OVERLAY, LAYER_ID, PhoneHud::render);

@@ -89,4 +89,25 @@ public final class PhoneItemData {
     public static void clearDeviceName(ItemStack stack) {
         stack.remove(ModDataComponents.DEVICE_NAME.get());
     }
+
+    /**
+     * 这一部手机的屏幕正亮着吗 —— 物品模型据此在黑屏与白屏之间切。
+     *
+     * 与设备名不同，这一条<b>不落盘</b>（见 {@link ModDataComponents#SCREEN_ON}）：它说的是
+     * "此刻有人正开着它"，不是手机自身的属性。写它的只有服务端收到
+     * {@code PhoneScreenOnPacket} 那一处，读它的只有渲染那一处。
+     */
+    public static boolean isScreenOn(ItemStack stack) {
+        return stack.getOrDefault(ModDataComponents.SCREEN_ON.get(), false);
+    }
+
+    /** 点亮这一部的屏幕 */
+    public static void setScreenOn(ItemStack stack) {
+        stack.set(ModDataComponents.SCREEN_ON.get(), true);
+    }
+
+    /** 灭掉这一部的屏幕。灭着的手机<b>不带这个组件</b>，而不是带一个 false */
+    public static void clearScreenOn(ItemStack stack) {
+        stack.remove(ModDataComponents.SCREEN_ON.get());
+    }
 }

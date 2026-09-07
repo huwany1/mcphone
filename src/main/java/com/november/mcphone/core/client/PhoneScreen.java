@@ -167,6 +167,9 @@ public final class PhoneScreen extends Screen {
         this.location = location;
         this.openTimeMs = System.currentTimeMillis();
         this.animationDone = PhoneTheme.OPEN_ANIMATION_MS <= 0;
+
+        // 开机了：手上那部的屏幕该亮起来，而且要让【别人】也看得见，见 PhoneScreenOnSync
+        PhoneScreenOnSync.turnedOn(location);
     }
 
     public void navigateTo(Mode target) {
@@ -1354,6 +1357,9 @@ public final class PhoneScreen extends Screen {
      * （手机离开副手）。它不是幂等的，重复调会把已经清过的状态再清一遍。
      */
     void shutdown() {
+        // 关机了：屏幕灭掉。放在最前面，下面那串 close() 与这件事无关
+        PhoneScreenOnSync.turnedOff(this);
+
         // 先记再关：下面这几个 close() 会把页面状态清掉
         PhoneSession.save(mode, pendingConversationPeer);
 
@@ -1402,6 +1408,10 @@ public final class PhoneScreen extends Screen {
      * 玩家正看着的那一页会退回主屏，而他做的只不过是整理了一下背包。
      */
     void relocate(PhoneLocation moved) {
-        if (moved != null) this.location = moved;
+        if (moved == null) return;
+        this.location = moved;
+
+        // 从背包挪到手上（或者反过来）时，亮着的那件物品跟着换，见 PhoneScreenOnSync
+        PhoneScreenOnSync.turnedOn(moved);
     }
 }
