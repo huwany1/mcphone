@@ -10,7 +10,7 @@ import net.neoforged.fml.ModList;
 import java.util.List;
 
 /**
- * MCphone 的 App 接口——实现它并用 Java SPI 注册，你的 App 就会出现在手机里。上手步骤见 {@code docs/addon-api.md}。
+ * MCphone 的 App 接口——实现它并用 Java SPI 注册，你的 App 就会出现在手机里。上手步骤见 wiki 的{@code Addon-Quickstart}。
  *
  * <b>本接口是客户端专用的</b>：{@link #renderIcon} 的签名里有 GuiGraphics，实现类只能在客户端加载，
  * 被物品或网络包顺带引用到会让专用服务器启动即崩。实现类请放在 {@code yourmod.client} 包下。

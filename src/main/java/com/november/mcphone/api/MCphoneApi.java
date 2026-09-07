@@ -23,7 +23,7 @@ public final class MCphoneApi {
      *          IAppSource / AppInfo / ICost / ItemCost / EmcCost
      *          IAppPriceProvider / IEmcWallet / EmcWallets
      *
-     * 逐个方法的说明见 docs/addon-api.md，那份是给附属开发者看的，这里只记契约。
+     * 逐个方法的说明见 wiki 的附属接口文档，那份是给附属开发者看的，这里只记契约。
      */
     public static final int VERSION = 1;
 
