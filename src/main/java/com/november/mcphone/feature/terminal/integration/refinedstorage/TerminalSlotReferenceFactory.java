@@ -10,7 +10,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * 把 {@link PhoneSlotReference} 登记进 RS 的注册表，并说明它怎么写进网络包。
+ * 把 {@link TerminalSlotReference} 登记进 RS 的注册表，并说明它怎么写进网络包。
  *
  * 不注册会怎样
  *
@@ -28,13 +28,13 @@ import net.minecraft.resources.ResourceLocation;
  * 太早调（比如在我们的模组构造里）拿到的是还没挂 delegate 的空壳。所以这一步放在
  * FMLCommonSetup 里——那时所有模组的构造都跑完了，不需要靠依赖顺序推理。
  */
-public final class PhoneSlotReferenceFactory implements SlotReferenceFactory {
+public final class TerminalSlotReferenceFactory implements SlotReferenceFactory {
 
-    public static final PhoneSlotReferenceFactory INSTANCE = new PhoneSlotReferenceFactory();
+    public static final TerminalSlotReferenceFactory INSTANCE = new TerminalSlotReferenceFactory();
 
     /** 注册 id。发出去之后不能改，改了等于换了一种位置，老存档里开着的界面读不回来 */
     private static final ResourceLocation ID =
-            ResourceLocation.fromNamespaceAndPath(MCphone.MODID, "phone_slot");
+            ResourceLocation.fromNamespaceAndPath(MCphone.MODID, "terminal_slot");
 
     /**
      * 一个 VarInt 就够：{@code -1} 是卡槽，其余是背包槽位号。
@@ -45,10 +45,10 @@ public final class PhoneSlotReferenceFactory implements SlotReferenceFactory {
      */
     private static final StreamCodec<RegistryFriendlyByteBuf, SlotReference> STREAM_CODEC =
             ByteBufCodecs.VAR_INT
-                    .<SlotReference>map(PhoneSlotReference::new, PhoneSlotReferenceFactory::slotOf)
+                    .<SlotReference>map(TerminalSlotReference::new, TerminalSlotReferenceFactory::slotOf)
                     .cast();
 
-    private PhoneSlotReferenceFactory() {}
+    private TerminalSlotReferenceFactory() {}
 
     /**
      * 读到不是我们这一种时按"卡槽"写。
@@ -58,9 +58,9 @@ public final class PhoneSlotReferenceFactory implements SlotReferenceFactory {
      * 只是界面开不出来。
      */
     private static Integer slotOf(SlotReference reference) {
-        return reference instanceof PhoneSlotReference phoneSlot
+        return reference instanceof TerminalSlotReference phoneSlot
                 ? phoneSlot.inventorySlot()
-                : PhoneSlotReference.PHONE_SLOT;
+                : TerminalSlotReference.PHONE_SLOT;
     }
 
     @Override

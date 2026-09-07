@@ -15,7 +15,7 @@ import net.minecraft.world.item.ItemStack;
 import java.util.Optional;
 
 /**
- * 找一台终端并打开它 —— 这个模组的全部业务逻辑。
+ * 找一台终端并打开它 —— 「终端」这一格的全部业务逻辑。
  *
  * 它为什么这么短
  *

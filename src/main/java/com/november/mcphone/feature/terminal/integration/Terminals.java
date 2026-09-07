@@ -64,19 +64,19 @@ public final class Terminals {
 
     /** 挑出装了的那几家，各自做一次性注册。只该被调一次 */
     public static void discover() {
-        List<TerminalIntegration> found = new ArrayList<>(3);
+        List<TerminalIntegration> candidates = new ArrayList<>(3);
 
-        if (ModList.get().isLoaded(Ae2Integration.MODID)) found.add(new Ae2Integration());
-        if (ModList.get().isLoaded(RefinedStorageIntegration.MODID)) found.add(new RefinedStorageIntegration());
-        if (ModList.get().isLoaded(TomsStorageIntegration.MODID)) found.add(new TomsStorageIntegration());
+        if (ModList.get().isLoaded(Ae2Integration.MODID)) candidates.add(new Ae2Integration());
+        if (ModList.get().isLoaded(RefinedStorageIntegration.MODID)) candidates.add(new RefinedStorageIntegration());
+        if (ModList.get().isLoaded(TomsStorageIntegration.MODID)) candidates.add(new TomsStorageIntegration());
 
         // 每一家单独兜住 Throwable：一家的注册翻车不该带走另外两家，更不该带走整个模组。
         //
         // 捕 Throwable 而不是 Exception 是刻意的：联动最常见的翻车方式是引用了对方模组里
         // 改了名或已删除的类，那抛出来的是 NoClassDefFoundError / NoSuchMethodError——属于
         // Error，用 Exception 接不住。CompatModules 那边同一个理由。
-        List<TerminalIntegration> ready = new ArrayList<>(found.size());
-        for (TerminalIntegration integration : found) {
+        List<TerminalIntegration> ready = new ArrayList<>(candidates.size());
+        for (TerminalIntegration integration : candidates) {
             try {
                 integration.setup();
                 ready.add(integration);
@@ -84,14 +84,13 @@ public final class Terminals {
                 MCphone.LOGGER.error("「终端」App 接 {} 失败，已跳过这一家", integration.modId(), t);
             }
         }
-        found = ready;
-        active = List.copyOf(found);
+        active = List.copyOf(ready);
 
-        if (found.isEmpty()) {
+        if (ready.isEmpty()) {
             MCphone.LOGGER.info("一家存储模组都没装，「终端」App 不会出现在主屏上");
         } else {
             MCphone.LOGGER.info("「终端」App 接上了：{}",
-                    found.stream().map(TerminalIntegration::displayName).toList());
+                    ready.stream().map(TerminalIntegration::displayName).toList());
         }
     }
 

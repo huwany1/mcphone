@@ -297,6 +297,7 @@
   "mcphone.terminal.hint_installed": "点「终端」就开这一台",
   "mcphone.terminal.no_remote": "「%s」不能隔空打开：这一把只能拿在手里，瞄准终端方块用。",
   "mcphone.terminal.open_failed": "%s 那边出错了，这台终端打不开。日志里有详情。",
+  "mcphone.terminal.list_sep": "、",
   "mcphone.reader.count": "%s 本",
   "mcphone.reader.empty": "书城里一本书都没有",
   "mcphone.reader.empty_hint": "带教程手册的模组会自己出现在这里。一本都没有，多半是这个整合包没有用手册的模组。",

@@ -5,6 +5,9 @@ import com.november.mcphone.core.client.PhoneApp;
 import com.november.mcphone.feature.terminal.TerminalSlot;
 import com.november.mcphone.feature.terminal.integration.TerminalIntegration;
 import com.november.mcphone.feature.terminal.integration.Terminals;
+import com.november.mcphone.feature.terminal.integration.ae2.Ae2Integration;
+import com.november.mcphone.feature.terminal.integration.refinedstorage.RefinedStorageIntegration;
+import com.november.mcphone.feature.terminal.integration.toms.TomsStorageIntegration;
 import com.november.mcphone.feature.terminal.net.TerminalActionPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -41,12 +44,14 @@ public final class TerminalApp extends PhoneApp {
      * 装了任意一家这一格就有内容。所以声明成联动，并自己覆盖 {@link #isAvailable()}，
      * 和传送石那一格同一个写法。
      *
-     * displayName 写死不查：要显示它的时候，那个模组多半正是没装的那一个。
+     * modid 与显示名都从那三个联动类的常量取，全模组只有一份，不会两处对不上。
+     * <b>这不会把那三个类加载进来</b>：它们是编译期常量，javac 直接内联成 ldc
+     * ——理由与验法见 {@code Ae2Integration.NAME} 的注释。
      */
     private static final List<RequiredMod> COMPANIONS = List.of(
-            new RequiredMod("ae2", "Applied Energistics 2"),
-            new RequiredMod("refinedstorage", "Refined Storage"),
-            new RequiredMod("toms_storage", "Tom's Simple Storage Mod"));
+            new RequiredMod(Ae2Integration.MODID, Ae2Integration.NAME),
+            new RequiredMod(RefinedStorageIntegration.MODID, RefinedStorageIntegration.NAME),
+            new RequiredMod(TomsStorageIntegration.MODID, TomsStorageIntegration.NAME));
 
     @Override
     public List<RequiredMod> companionMods() {
@@ -118,7 +123,9 @@ public final class TerminalApp extends PhoneApp {
         List<TerminalIntegration> active = Terminals.active();
         if (active.isEmpty()) return text;
 
-        String names = String.join("、", active.stream().map(TerminalIntegration::displayName).toList());
+        // 分隔符走语言文件：中文用「、」，英文用「, 」。写死一个的话另一边必然难看
+        String names = String.join(I18n.get("mcphone.terminal.list_sep"),
+                active.stream().map(TerminalIntegration::displayName).toList());
         return text + I18n.get("mcphone.app.terminal.desc.connected", names);
     }
 }

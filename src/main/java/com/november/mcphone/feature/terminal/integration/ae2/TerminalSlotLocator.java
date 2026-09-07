@@ -24,21 +24,21 @@ import net.minecraft.world.phys.BlockHitResult;
  *
  * 注册顺序不用管：线上格式是<b>类的全名字符串</b>（{@code writeUtf(getClass().getName())}），
  * 不是序号。所以我们和 AE2 谁先注册都一样，也不会因为版本更新而错位。这一点和 RS 那边
- * 不同，RS 用的是 ResourceLocation（见 {@code PhoneSlotReferenceFactory}）。
+ * 不同，RS 用的是 ResourceLocation（见 {@code TerminalSlotReferenceFactory}）。
  *
  * 这个 locator 没有字段
  *
  * "哪台终端"这件事由玩家自己决定——手机卡槽只有一格。所以写包时一个字节都不用写，读包时
  * 造一个新的就行。玩家从连接上下文来，伪造不了。
  */
-public record PhoneSlotLocator() implements ItemMenuHostLocator {
+public record TerminalSlotLocator() implements ItemMenuHostLocator {
 
     /** 往 AE2 的 locator 注册表里登记这一种。由 {@link Ae2Integration#setup()} 调，两端都调 */
     public static void register() {
         MenuLocators.register(
-                PhoneSlotLocator.class,
+                TerminalSlotLocator.class,
                 (locator, buf) -> { },          // 没有字段可写
-                buf -> new PhoneSlotLocator()   // 也没有字段可读
+                buf -> new TerminalSlotLocator()   // 也没有字段可读
         );
     }
 

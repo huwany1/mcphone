@@ -36,6 +36,9 @@ public final class TomsStorageIntegration implements TerminalIntegration {
 
     public static final String MODID = "toms_storage";
 
+    /** 显示名。与 modid 一样是编译期常量，理由见 {@code Ae2Integration.NAME} */
+    public static final String NAME = "Tom's Simple Storage Mod";
+
     @Override
     public String modId() {
         return MODID;
@@ -43,7 +46,7 @@ public final class TomsStorageIntegration implements TerminalIntegration {
 
     @Override
     public String displayName() {
-        return "Tom's Simple Storage Mod";
+        return NAME;
     }
 
     @Override

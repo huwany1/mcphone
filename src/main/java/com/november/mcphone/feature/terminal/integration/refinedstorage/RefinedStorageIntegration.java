@@ -34,6 +34,9 @@ public final class RefinedStorageIntegration implements TerminalIntegration {
 
     public static final String MODID = "refinedstorage";
 
+    /** 显示名。与 modid 一样是编译期常量，理由见 {@code Ae2Integration.NAME} */
+    public static final String NAME = "Refined Storage";
+
     @Override
     public String modId() {
         return MODID;
@@ -41,7 +44,7 @@ public final class RefinedStorageIntegration implements TerminalIntegration {
 
     @Override
     public String displayName() {
-        return "Refined Storage";
+        return NAME;
     }
 
     @Override
@@ -60,17 +63,17 @@ public final class RefinedStorageIntegration implements TerminalIntegration {
      * 把"在哪儿"翻译成 RS 认的位置。
      *
      * 两种情况都用我们自己那一个实现，理由（RS 自带的那个构造函数是包内可见的）见
-     * {@link PhoneSlotReference} 的类注释。
+     * {@link TerminalSlotReference} 的类注释。
      */
     private static SlotReference referenceFor(TerminalSource source) {
         return switch (source) {
-            case TerminalSource.PhoneSlot ignored -> PhoneSlotReference.phoneSlot();
-            case TerminalSource.InventorySlot(int index) -> new PhoneSlotReference(index);
+            case TerminalSource.PhoneSlot ignored -> TerminalSlotReference.phoneSlot();
+            case TerminalSource.InventorySlot(int index) -> new TerminalSlotReference(index);
         };
     }
 
     @Override
     public void setup() {
-        PhoneSlotReferenceFactory.register();
+        TerminalSlotReferenceFactory.register();
     }
 }

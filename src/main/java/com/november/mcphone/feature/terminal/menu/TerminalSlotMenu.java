@@ -25,17 +25,61 @@ import net.minecraft.world.item.ItemStack;
  *
  * 为什么是一个真的容器界面，而不是画在手机屏幕里
  *
- * 附属的 {@code IPhonePage} 只给 render / mouseClicked / keyPressed，没有任何 Slot 支持；
- * 本体自己那个能拖拽的容器界面在 {@code core} 包里，附属碰不到。而"把终端放进去"这件事
- * 要的恰恰是拖拽、shift 搬运这些原版行为。所以这里另开一个 {@code AbstractContainerMenu}
- * ——它是我们自己的，不依赖本体任何东西。
+ * 手机那块 120×176 的屏幕上没有格子这回事：{@code IPhonePage} 只给 render / mouseClicked /
+ * keyPressed，而"把终端放进去"要的恰恰是拖拽、shift 搬运、双击整理这些原版行为。所以这里
+ * 走原版的 {@code AbstractContainerMenu}，白拿那一整套。
+ *
+ * 为什么不复用 {@code PhoneContainerMenu}（末影箱那个）
+ *
+ * 它是个等大的普通容器，表达不了这一格的两条要求：只收开得了的终端（mayPlace），以及
+ * 下面那个「打开终端」按钮。唱片仓当初也是同一个理由自己写了一份。三者共用的是外壳
+ * ——{@code PhoneChassis}，见 {@code TerminalSlotScreen}。
  */
 public class TerminalSlotMenu extends AbstractContainerMenu {
 
-    /** 卡槽在界面里的位置。屏幕那边画底板要用同一个数，所以放在这里公开 */
+    /*
+     * 版面尺寸与坐标【全部】放在这里，屏幕那边只读不写。
+     *
+     * 格子的 x/y 是相对 leftPos/topPos 的，两边必须用同一套基准；在屏幕里再抄一份，
+     * 就是等着哪天改了一处、格子画到背板外面去。唱片仓那边（DiscBayMenu）是同一个做法。
+     */
+
+    /** 与原版箱子同宽。手机竖屏机身只有 120px，放不下 9 列格子（要 162px） */
+    public static final int IMAGE_WIDTH = 176;
+
+    /**
+     * 比原版箱子高一点：卡槽下面要塞得下一行提示和一个按钮。纵向预算：
+     *
+     *     标题        6 … 15
+     *     卡槽(含边) 17 … 35     SLOT_Y = 18
+     *     提示文字   39 … 48     HINT_Y
+     *     按钮       50 … 70     BUTTON_Y + BUTTON_H
+     *     「物品栏」  72 … 81     INVENTORY_LABEL_Y，原版算式
+     *     背包(含边) 83 … 137
+     *     快捷栏     141 … 159
+     */
+    public static final int IMAGE_HEIGHT = 166;
+
+    /** 单个格子的间距（原版标准：16px 物品 + 2px 边框） */
+    public static final int SLOT_SIZE = 18;
+
+    /** 「物品栏」那行字的 Y，与原版同一个算式，这样它和下面的格子对得上 */
+    public static final int INVENTORY_LABEL_Y = IMAGE_HEIGHT - 94;
+
+    /** 卡槽那一格，横向居中 */
     public static final int SLOT_X = 80;
-    /** 18 而不是 20：下面要塞进提示文字和按钮，纵向预算见 TerminalSlotScreen 的常量 */
     public static final int SLOT_Y = 18;
+
+    /** 卡槽旁边那行说明的 Y */
+    public static final int HINT_Y = SLOT_Y + 21;
+
+    /** 「打开终端」按钮 */
+    public static final int BUTTON_X = 8;
+    public static final int BUTTON_Y = 50;
+    public static final int BUTTON_W = 160;
+    public static final int BUTTON_H = 20;
+
+    private static final int COLUMNS = 9;
 
     private final TerminalSlotContainer terminal;
 
@@ -76,13 +120,15 @@ public class TerminalSlotMenu extends AbstractContainerMenu {
 
         // 玩家背包三行
         for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 84 + row * 18));
+            for (int col = 0; col < COLUMNS; col++) {
+                addSlot(new Slot(playerInventory, col + row * COLUMNS + COLUMNS,
+                        8 + col * SLOT_SIZE,
+                        84 + row * SLOT_SIZE));
             }
         }
         // 快捷栏
-        for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 8 + col * 18, 142));
+        for (int col = 0; col < COLUMNS; col++) {
+            addSlot(new Slot(playerInventory, col, 8 + col * SLOT_SIZE, 142));
         }
     }
 

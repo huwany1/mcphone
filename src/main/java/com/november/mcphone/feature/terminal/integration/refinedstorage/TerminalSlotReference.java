@@ -28,13 +28,13 @@ import java.util.Optional;
  * {@link #resolve} 与 {@link #isDisabledSlot} 都必须同时照顾两种情况——分成两个类反而要
  * 注册两次、写两份编解码。
  */
-public record PhoneSlotReference(int inventorySlot) implements SlotReference {
+public record TerminalSlotReference(int inventorySlot) implements SlotReference {
 
     /** {@link #inventorySlot} 取这个值时表示"在手机卡槽里"，不是背包里的任何一格 */
     public static final int PHONE_SLOT = -1;
 
-    public static PhoneSlotReference phoneSlot() {
-        return new PhoneSlotReference(PHONE_SLOT);
+    public static TerminalSlotReference phoneSlot() {
+        return new TerminalSlotReference(PHONE_SLOT);
     }
 
     /**
@@ -72,6 +72,6 @@ public record PhoneSlotReference(int inventorySlot) implements SlotReference {
 
     @Override
     public SlotReferenceFactory getFactory() {
-        return PhoneSlotReferenceFactory.INSTANCE;
+        return TerminalSlotReferenceFactory.INSTANCE;
     }
 }

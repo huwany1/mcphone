@@ -13,7 +13,7 @@ package com.november.mcphone.feature.terminal.integration;
  *   RS 2  {@code SlotReference}，同样是可注册的一套
  *   Tom's 没有这个概念，它的 {@code open} 直接吃 ItemStack
  *
- * 所以本模组自己说一遍"在哪儿"，再由每个联动把它翻译成对方认的形状。翻译代码关在各自的
+ * 所以这一格自己说一遍"在哪儿"，再由每个联动把它翻译成对方认的形状。翻译代码关在各自的
  * 联动类里，{@link Terminals} 和 {@code TerminalOpener} 一个外部类型都不用认识。
  *
  * 为什么不是简单地传 int（-1 表示卡槽）

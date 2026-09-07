@@ -29,6 +29,18 @@ public final class Ae2Integration implements TerminalIntegration {
 
     public static final String MODID = "ae2";
 
+    /**
+     * 显示名。写死不查——要显示它的时候，那个模组多半正是没装的那一个。
+     *
+     * {@code TerminalApp} 的联动模组列表直接引用这个常量，这样"叫什么"全模组只有一份。
+     * <b>引用它不会加载这个类</b>：带常量初始化式的 {@code static final String} 是编译期
+     * 常量，javac 把它内联进调用方的常量池（{@code ldc}），运行时根本不碰 Ae2Integration。
+     * 想改成非常量（比如拼字符串、查语言文件）之前先想清楚这一条——那会让没装 AE2 的玩家
+     * 在构建 App 目录时加载到这个类。验一遍：
+     * {@code javap -c TerminalApp | grep -A2 COMPANIONS}，看到 ldc 才对。
+     */
+    public static final String NAME = "Applied Energistics 2";
+
     /** AE2WTLib 的 modid。软依赖，判断它在不在场用这个常量 */
     private static final String AE2WTLIB_MODID = "ae2wtlib";
 
@@ -39,7 +51,7 @@ public final class Ae2Integration implements TerminalIntegration {
 
     @Override
     public String displayName() {
-        return "Applied Energistics 2";
+        return NAME;
     }
 
     @Override
@@ -72,13 +84,13 @@ public final class Ae2Integration implements TerminalIntegration {
     /** 把"在哪儿"翻译成 AE2 认的 locator。背包那一种是 AE2 自带的，卡槽那一种是我们注册的 */
     private static ItemMenuHostLocator locatorFor(TerminalSource source) {
         return switch (source) {
-            case TerminalSource.PhoneSlot ignored -> new PhoneSlotLocator();
+            case TerminalSource.PhoneSlot ignored -> new TerminalSlotLocator();
             case TerminalSource.InventorySlot(int index) -> MenuLocators.forInventorySlot(index);
         };
     }
 
     @Override
     public void setup() {
-        PhoneSlotLocator.register();
+        TerminalSlotLocator.register();
     }
 }
