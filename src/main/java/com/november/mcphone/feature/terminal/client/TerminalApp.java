@@ -104,6 +104,16 @@ public final class TerminalApp extends PhoneApp {
                         : TerminalActionPacket.Action.OPEN_TERMINAL));
     }
 
+    /**
+     * 界面不在手机里 —— 开的是那三家自己的终端界面（{@link #onPress()} 只发包，
+     * 界面由服务端 openMenu 之后原版流程自己弹）。
+     *
+     * 所以快捷键不必先开机：开了的话玩家会看见手机弹出来、等服务端把容器开回来之后
+     * 才被终端顶掉，中间白闪一下。
+     */
+    @Override
+    public boolean opensInsidePhone() { return false; }
+
     /** 手机卡槽里装着终端吗。还没进世界（player 为 null）时当没装 */
     private static boolean hasInstalledTerminal() {
         LocalPlayer player = Minecraft.getInstance().player;

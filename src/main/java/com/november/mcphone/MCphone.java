@@ -47,6 +47,10 @@ public class MCphone {
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
                 com.november.mcphone.feature.chat.ChatImageUploads::onPlayerLoggedOut);
 
+        // 手机替卡槽里的终端供电。漏了它的症状是"终端在手机里会没电"，见 TerminalCharger
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+                com.november.mcphone.feature.terminal.TerminalCharger::onPlayerTick);
+
         // 开服时清掉没有消息认领的图片文件，理由见 ChatImageStore.sweepOrphans
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
                 com.november.mcphone.feature.chat.ChatImageStore::onServerStarted);

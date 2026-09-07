@@ -201,6 +201,7 @@
   "mcphone.chat.image_webp": "这张其实是 WebP，改成 .gif 也没用；先转成 GIF 或 PNG",
   "mcphone.config.allow_chat_images": "允许发图片",
   "mcphone.config.chat_image_max_kb": "一张图最多多少 KB",
+  "mcphone.config.terminal_keep_powered": "手机替卡槽里的终端供电",
   "mcphone.chat.teleport_arrived": "%s 传送到了你身边",
   "mcphone.app.clock": "时钟",
   "mcphone.app.clock.desc": "游戏里几点了，现实里几点了，还有多久天黑。在下界也照常走——原版时钟在那儿只会乱转。",

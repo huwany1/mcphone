@@ -201,6 +201,7 @@
   "mcphone.chat.image_webp": "That file is really a WebP; renaming it to .gif won't help. Convert it to GIF or PNG first",
   "mcphone.config.allow_chat_images": "Allow Photo Messages",
   "mcphone.config.chat_image_max_kb": "Max image size (KB)",
+  "mcphone.config.terminal_keep_powered": "Phone powers the installed terminal",
   "mcphone.chat.teleport_arrived": "%s teleported to you",
   "mcphone.app.clock": "Clock",
   "mcphone.app.clock.desc": "The time in game, the time out here, and how long until dark. Works in the Nether too — the vanilla clock just spins there.",

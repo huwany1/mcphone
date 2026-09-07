@@ -91,4 +91,8 @@ public final class QuestsApp extends PhoneApp {
     public void onPress() {
         FtbQuestsBook.open();
     }
+
+    /** 界面不在手机里：开的是 FTB Quests 自己那本任务书，快捷键不必先开机 */
+    @Override
+    public boolean opensInsidePhone() { return false; }
 }

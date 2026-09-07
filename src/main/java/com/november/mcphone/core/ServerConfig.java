@@ -38,6 +38,9 @@ public final class ServerConfig {
     /** 一张图（动图是所有帧拼成的那一张）最多多少 KB */
     public static final ModConfigSpec.IntValue CHAT_IMAGE_MAX_KB;
 
+    /** 装在手机卡槽里的终端要不要一直保持满电 */
+    public static final ModConfigSpec.BooleanValue TERMINAL_KEEP_POWERED;
+
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
@@ -82,6 +85,23 @@ public final class ServerConfig {
                 .translation("mcphone.config.chat_image_max_kb")
                 .defineInRange("chatImageMaxKb", 512, 64, 768);
 
+        TERMINAL_KEEP_POWERED = builder
+                .comment("装在手机卡槽里的那台终端，要不要由手机替它供电（一直保持满电）。",
+                        "开着（默认）：卡槽里的终端每秒被充满，于是它不会没电、也不用取出来充。",
+                        "关掉：卡槽里的终端和拿在手上一样自己耗电，没电了就打不开——",
+                        "  要充电得先从卡槽里取出来，充完再装回去。",
+                        "为什么会想关：这等于给了那台终端无限电量，介意的整合包请关掉。",
+                        "注意这只改「电」这一件事。范围、维度、绑没绑网络仍然全由 AE2 / RS 自己说了算。",
+                        "对 Tom's Simple Storage 无效——它的终端本来就不用电。",
+                        "充进去的电取不回来：AE2 与 RS 的终端都不允许外部抽电（canExtract 恒为 false），",
+                        "所以这不是一台无限发电机。",
+                        "Keep the terminal installed in the phone's terminal slot topped up (the phone powers it).",
+                        "On by default: it never runs out and never has to be taken out to charge.",
+                        "Off: it drains like it would in your hand, exactly as before 1.10.0.",
+                        "Only affects energy. Range, dimension and network binding stay AE2's / RS's call.")
+                .translation("mcphone.config.terminal_keep_powered")
+                .define("terminalKeepPowered", true);
+
         builder.pop();
         SPEC = builder.build();
     }
@@ -114,4 +134,12 @@ public final class ServerConfig {
 
     /** 与上面 defineInRange 里那个默认值必须一致 */
     private static final int DEFAULT_IMAGE_MAX_KB = 512;
+
+    /**
+     * 手机替卡槽里的终端供电吗。没加载时返回 true，理由同 {@link #allowFriendTeleport()}
+     * ——那只发生在还没进世界的时候，那时卡槽里的东西也不会被 tick 到。
+     */
+    public static boolean terminalKeepPowered() {
+        return !SPEC.isLoaded() || TERMINAL_KEEP_POWERED.get();
+    }
 }

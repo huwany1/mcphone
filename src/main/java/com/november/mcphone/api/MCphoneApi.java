@@ -20,7 +20,7 @@ public final class MCphoneApi {
      *   1  —— IPhoneApp / RequiredMod / IPhonePage / PhoneCanvas / PhoneStyle
      *          IAppSource / AppInfo / ICost / ItemCost / EmcCost
      *          IAppPriceProvider / IEmcWallet / EmcWallets
-     *   2  —— PhoneMultiLineEditBox（1.10.4）
+     *   2  —— PhoneMultiLineEditBox（1.10.4）、IPhoneApp.opensInsidePhone()
      *
      * 【这个值是在静态块里赋的，别改成 {@code = 2}】
      *
