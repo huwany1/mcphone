@@ -20,13 +20,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号怎么升'
+        description: '版本号怎么升（promote ＝ 把当前的预发布后缀摘掉转正，如 1.10.1-beta.1 → 1.10.1）'
         required: true
         type: choice
         options:
           - patch
           - minor
           - major
+          - promote
           - custom
       custom_version:
         description: '自定义版本号（仅当上面选 custom 时填，形如 1.11.0）'
@@ -86,8 +87,17 @@ jobs:
         run: |
           set -euo pipefail
           CURRENT=$(grep -E '^mod_version=' gradle.properties | cut -d= -f2- | tr -d '[:space:]')
-          if ! printf '%s' "$CURRENT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::gradle.properties 里的 mod_version=$CURRENT 不是 x.y.z，无法在它基础上升"
+
+          # 版本号允许带一截预发布后缀：1.10.1-beta.1。它是 Maven 版本序里的
+          # 【小于】1.10.1 的那一档，NeoForge 读的就是这套序，所以"先发 beta 再转正"
+          # 在玩家那边是正常的升级方向，而不是降级。
+          #
+          # 升级基准取的是去掉后缀的那一段：站在 1.10.1-beta.1 上选 patch 得到 1.10.2
+          # （那一版的 beta 不要了），选 promote 得到 1.10.1（那一版转正）。
+          BASE="${CURRENT%%-*}"
+          SUFFIX="${CURRENT#"$BASE"}"
+          if ! printf '%s' "$BASE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::gradle.properties 里的 mod_version=$CURRENT 不是 x.y.z 也不是 x.y.z-后缀，无法在它基础上升"
             exit 1
           fi
 
@@ -96,13 +106,21 @@ jobs:
               echo "::error::选了 custom 就必须填 custom_version"
               exit 1
             fi
-            if ! printf '%s' "$CUSTOM" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "::error::custom_version=$CUSTOM 不是 x.y.z。tag 名与 jar 文件名都由它拼出来，不接受别的形状"
+            # 后缀只收 [0-9A-Za-z.-]：tag 名与 jar 文件名都由它拼出来
+            if ! printf '%s' "$CUSTOM" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+              echo "::error::custom_version=$CUSTOM 不是 x.y.z 或 x.y.z-后缀（如 1.10.1-beta.1）。tag 名与 jar 文件名都由它拼出来，不接受别的形状"
               exit 1
             fi
             NEW="$CUSTOM"
+          elif [ "$BUMP" = "promote" ]; then
+            # 转正：把预发布后缀摘掉，版本号本身不动
+            if [ -z "$SUFFIX" ]; then
+              echo "::error::当前是 $CURRENT，本来就没有预发布后缀，没什么可转正的。要升号请选 patch / minor / major"
+              exit 1
+            fi
+            NEW="$BASE"
           else
-            IFS=. read -r MA MI PA <<< "$CURRENT"
+            IFS=. read -r MA MI PA <<< "$BASE"
             case "$BUMP" in
               major) MA=$((MA + 1)); MI=0; PA=0 ;;
               minor) MI=$((MI + 1)); PA=0 ;;
