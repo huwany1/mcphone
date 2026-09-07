@@ -3,11 +3,11 @@ package com.november.mcphone.feature.music;
 import com.november.mcphone.compat.NetMusicCompat;
 import com.november.mcphone.core.PhoneItem;
 import com.november.mcphone.core.PhonePlayerData;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.music.net.PlayNetSongPacket;
 import com.november.mcphone.feature.music.net.StopNetSongPacket;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.core.Holder;
 import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -218,7 +218,7 @@ public final class DiscService {
     }
 
     private static void sendTo(List<ServerPlayer> audience, CustomPacketPayload packet) {
-        for (ServerPlayer p : audience) PacketDistributor.sendToPlayer(p, packet);
+        for (ServerPlayer p : audience) MCphoneNetwork.sendToPlayer(p, packet);
     }
 
     /** 玩家下线时丢掉他的听众名单。由 MCphone 构造函数显式挂到游戏总线上；漏挂没有症状，只是这张表再也不缩小 */

@@ -4,6 +4,7 @@ import com.november.mcphone.MCphone;
 import com.november.mcphone.api.cost.ICost;
 import com.november.mcphone.core.PhoneItem;
 import com.november.mcphone.core.PhonePlayerData;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.store.AppPriceRegistry;
 import com.november.mcphone.feature.store.PurchasedApps;
 import com.november.mcphone.core.net.RequestThrottle;
@@ -11,7 +12,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 /**
@@ -41,21 +41,24 @@ public final class StoreNetworking {
     /** 由 NetworkHandler.register 调用 */
     public static void register(PayloadRegistrar registrar) {
         // C2S: 进商店了，问我买过哪些
-        registrar.playToServer(
+        MCphoneNetwork.registerToServer(
+                registrar,
                 RequestPurchasedAppsPacket.TYPE,
                 RequestPurchasedAppsPacket.STREAM_CODEC,
                 StoreNetworking::handleRequest
         );
 
         // C2S: 买这个
-        registrar.playToServer(
+        MCphoneNetwork.registerToServer(
+                registrar,
                 PurchaseAppPacket.TYPE,
                 PurchaseAppPacket.STREAM_CODEC,
                 StoreNetworking::handlePurchase
         );
 
         // S2C: 下发买过的全部
-        registrar.playToClient(
+        MCphoneNetwork.registerToClient(
+                registrar,
                 SyncPurchasedAppsPacket.TYPE,
                 SyncPurchasedAppsPacket.STREAM_CODEC,
                 StoreNetworking::handleSync
@@ -64,12 +67,9 @@ public final class StoreNetworking {
 
     //  服务端侧
 
-    private static void handleRequest(RequestPurchasedAppsPacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            if (!(ctx.player() instanceof ServerPlayer player)) return;
-            if (!RequestThrottle.allow(player, RequestThrottle.Kind.PURCHASED)) return;
-            sync(player, ctx);
-        });
+    private static void handleRequest(RequestPurchasedAppsPacket packet, ServerPlayer player) {
+        if (!RequestThrottle.allow(player, RequestThrottle.Kind.PURCHASED)) return;
+        sync(player);
     }
 
     /**
@@ -79,67 +79,63 @@ public final class StoreNetworking {
      * 付费 App、已经买过），最后才碰玩家的物品。反过来的话，一次被拒绝的
      * 购买也可能已经扣掉了东西。
      */
-    private static void handlePurchase(PurchaseAppPacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            if (!(ctx.player() instanceof ServerPlayer player)) return;
+    private static void handlePurchase(PurchaseAppPacket packet, ServerPlayer player) {
+        // 与末影箱、传送石一致：身上得真有手机。没有这道检查，改个客户端
+        // 就能不掏手机买东西，手机这个前提条件形同虚设
+        if (!PhoneItem.isCarriedBy(player)) {
+            MCphone.LOGGER.debug("玩家 {} 请求购买但身上没有手机，已忽略",
+                    player.getName().getString());
+            return;
+        }
 
-            // 与末影箱、传送石一致：身上得真有手机。没有这道检查，改个客户端
-            // 就能不掏手机买东西，手机这个前提条件形同虚设
-            if (!PhoneItem.isCarriedBy(player)) {
-                MCphone.LOGGER.debug("玩家 {} 请求购买但身上没有手机，已忽略",
-                        player.getName().getString());
-                return;
-            }
+        ResourceLocation appId = packet.appId();
 
-            ResourceLocation appId = packet.appId();
+        // 白名单：只有被报过价的才能买。理由见类注释
+        if (!AppPriceRegistry.isPaid(appId)) {
+            MCphone.LOGGER.debug("玩家 {} 请求购买未定价的 '{}'，已忽略",
+                    player.getName().getString(), appId);
+            return;
+        }
 
-            // 白名单：只有被报过价的才能买。理由见类注释
-            if (!AppPriceRegistry.isPaid(appId)) {
-                MCphone.LOGGER.debug("玩家 {} 请求购买未定价的 '{}'，已忽略",
-                        player.getName().getString(), appId);
-                return;
-            }
+        PurchasedApps owned = PhonePlayerData.of(player).purchasedApps();
 
-            PurchasedApps owned = PhonePlayerData.of(player).purchasedApps();
+        // 已经买过就直接回一份同步，不重复扣。走到这里通常是客户端的
+        // 缓存过期了（比如换了台设备登录），不是攻击，所以照常回话
+        if (owned.has(appId)) {
+            sync(player);
+            return;
+        }
 
-            // 已经买过就直接回一份同步，不重复扣。走到这里通常是客户端的
-            // 缓存过期了（比如换了台设备登录），不是攻击，所以照常回话
-            if (owned.has(appId)) {
-                sync(player, ctx);
-                return;
-            }
+        if (owned.isFull()) {
+            fail(player, "mcphone.store.error.too_many");
+            return;
+        }
 
-            if (owned.isFull()) {
-                fail(player, "mcphone.store.error.too_many");
-                return;
-            }
+        ICost cost = AppPriceRegistry.priceOf(appId);
 
-            ICost cost = AppPriceRegistry.priceOf(appId);
+        // 先问够不够，再扣。ICost 的实现自己也会再判一次——两道都留着，
+        // 因为这里要的是"没扣成时给玩家一句人话"，而 consume 只回 false
+        if (!cost.canAfford(player)) {
+            player.displayClientMessage(
+                    Component.translatable("mcphone.store.error.cannot_afford", cost.describe())
+                            .withStyle(ChatFormatting.RED), true);
+            return;
+        }
+        if (!cost.consume(player)) {
+            fail(player, "mcphone.store.error.purchase_failed");
+            return;
+        }
 
-            // 先问够不够，再扣。ICost 的实现自己也会再判一次——两道都留着，
-            // 因为这里要的是"没扣成时给玩家一句人话"，而 consume 只回 false
-            if (!cost.canAfford(player)) {
-                player.displayClientMessage(
-                        Component.translatable("mcphone.store.error.cannot_afford", cost.describe())
-                                .withStyle(ChatFormatting.RED), true);
-                return;
-            }
-            if (!cost.consume(player)) {
-                fail(player, "mcphone.store.error.purchase_failed");
-                return;
-            }
+        PhonePlayerData.of(player).setPurchasedApps(owned.with(appId));
+        sync(player);
 
-            PhonePlayerData.of(player).setPurchasedApps(owned.with(appId));
-            sync(player, ctx);
-
-            MCphone.LOGGER.info("玩家 {} 购买了 App {}，代价 {}",
-                    player.getName().getString(), appId, cost.describe().getString());
-        });
+        MCphone.LOGGER.info("玩家 {} 购买了 App {}，代价 {}",
+                player.getName().getString(), appId, cost.describe().getString());
     }
 
     /** 把这名玩家买过的全部回发给他 */
-    private static void sync(ServerPlayer player, IPayloadContext ctx) {
-        ctx.reply(new SyncPurchasedAppsPacket(
+    private static void sync(ServerPlayer player) {
+        MCphoneNetwork.sendToPlayer(player, new SyncPurchasedAppsPacket(
                 PhonePlayerData.of(player).purchasedApps()));
     }
 
@@ -150,7 +146,7 @@ public final class StoreNetworking {
 
     //  客户端侧
 
-    private static void handleSync(SyncPurchasedAppsPacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> StoreClientCache.set(packet.purchased()));
+    private static void handleSync(SyncPurchasedAppsPacket packet) {
+        StoreClientCache.set(packet.purchased());
     }
 }

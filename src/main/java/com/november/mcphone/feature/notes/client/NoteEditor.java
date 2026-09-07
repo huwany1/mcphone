@@ -1,5 +1,6 @@
 package com.november.mcphone.feature.notes.client;
 
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.notes.Note;
 import com.november.mcphone.feature.notes.NoteService;
 import com.november.mcphone.feature.notes.net.DeleteNotePacket;
@@ -11,7 +12,6 @@ import com.november.mcphone.api.client.ui.PhoneMultiLineEditBox;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * 笔记编辑界面，多行输入用 {@link PhoneMultiLineEditBox}（原版 MultiLineEditBox 只换掉了
@@ -62,7 +62,7 @@ public final class NoteEditor {
         resetBox();
 
         NotesClientCache.openNote(id);
-        PacketDistributor.sendToServer(new RequestNotePacket(id));
+        MCphoneNetwork.sendToServer(new RequestNotePacket(id));
     }
 
     public void openNew() {
@@ -193,7 +193,7 @@ public final class NoteEditor {
     private void save() {
         if (box == null) return;
         deleteArmed = false;
-        PacketDistributor.sendToServer(new SaveNotePacket(noteId, box.getValue()));
+        MCphoneNetwork.sendToServer(new SaveNotePacket(noteId, box.getValue()));
         backRequested = true;
     }
 
@@ -203,7 +203,7 @@ public final class NoteEditor {
             return;
         }
         deleteArmed = false;
-        PacketDistributor.sendToServer(new DeleteNotePacket(noteId));
+        MCphoneNetwork.sendToServer(new DeleteNotePacket(noteId));
         backRequested = true;
     }
 }

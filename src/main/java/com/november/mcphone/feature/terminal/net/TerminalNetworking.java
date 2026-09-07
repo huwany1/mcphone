@@ -1,8 +1,8 @@
 package com.november.mcphone.feature.terminal.net;
 
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.terminal.TerminalOpener;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 /**
@@ -21,7 +21,8 @@ public final class TerminalNetworking {
 
     public static void register(PayloadRegistrar registrar) {
         // C2S: 玩家在手机里点了「终端」，或者点了卡槽界面上的「打开终端」
-        registrar.playToServer(
+        MCphoneNetwork.registerToServer(
+                registrar,
                 TerminalActionPacket.TYPE,
                 TerminalActionPacket.STREAM_CODEC,
                 TerminalNetworking::handle
@@ -35,13 +36,10 @@ public final class TerminalNetworking {
      * 每个分支自己去查前提，查不到就什么都不做。客户端那边可能已经判断过一次（决定按钮亮
      * 不亮），但界面挡不住伪造的包。
      */
-    private static void handle(TerminalActionPacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            if (!(ctx.player() instanceof ServerPlayer player)) return;
-            switch (packet.action()) {
-                case OPEN_TERMINAL -> TerminalOpener.open(player);
-                case OPEN_SLOT_MENU -> TerminalOpener.openSlotMenu(player);
-            }
-        });
+    private static void handle(TerminalActionPacket packet, ServerPlayer player) {
+        switch (packet.action()) {
+            case OPEN_TERMINAL -> TerminalOpener.open(player);
+            case OPEN_SLOT_MENU -> TerminalOpener.openSlotMenu(player);
+        }
     }
 }

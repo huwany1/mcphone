@@ -3,6 +3,7 @@ package com.november.mcphone.feature.terminal.client;
 import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.PhoneChassis;
 import com.november.mcphone.core.client.PhoneScreenOpener;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.terminal.integration.Terminals;
 import com.november.mcphone.feature.terminal.menu.TerminalSlotMenu;
 import com.november.mcphone.feature.terminal.net.TerminalActionPacket;
@@ -12,7 +13,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * 终端卡槽的界面 —— 一个终端格 ＋ 玩家背包，外加一个「打开终端」按钮。
@@ -51,7 +51,7 @@ public class TerminalSlotScreen extends AbstractContainerScreen<TerminalSlotMenu
 
         openButton = Button.builder(
                         Component.translatable("mcphone.terminal.open"),
-                        b -> PacketDistributor.sendToServer(
+                        b -> MCphoneNetwork.sendToServer(
                                 new TerminalActionPacket(TerminalActionPacket.Action.OPEN_TERMINAL)))
                 .bounds(leftPos + TerminalSlotMenu.BUTTON_X, topPos + TerminalSlotMenu.BUTTON_Y,
                         TerminalSlotMenu.BUTTON_W, TerminalSlotMenu.BUTTON_H)

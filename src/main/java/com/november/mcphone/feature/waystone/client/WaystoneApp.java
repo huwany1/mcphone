@@ -3,9 +3,9 @@ package com.november.mcphone.feature.waystone.client;
 import com.november.mcphone.api.client.app.RequiredMod;
 import com.november.mcphone.compat.WaystonesCompat;
 import com.november.mcphone.core.client.PhoneApp;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.waystone.net.OpenWaystoneSelectionPacket;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.List;
 
@@ -54,7 +54,7 @@ public final class WaystoneApp extends PhoneApp {
     @Override
     public void onPress() {
         // 只发包不自己开界面：菜单与传送的校验都只有服务端说了算
-        PacketDistributor.sendToServer(new OpenWaystoneSelectionPacket());
+        MCphoneNetwork.sendToServer(new OpenWaystoneSelectionPacket());
     }
 
     /**

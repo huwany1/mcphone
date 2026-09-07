@@ -21,7 +21,6 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.inventory.PlayerEnderChestContainer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 /**
@@ -59,28 +58,32 @@ public final class NetworkHandler {
         PayloadRegistrar registrar = event.registrar("1");
 
         // C2S: 玩家选了壁纸
-        registrar.playToServer(
+        MCphoneNetwork.registerToServer(
+                registrar,
                 SetWallpaperPacket.TYPE,
                 SetWallpaperPacket.STREAM_CODEC,
                 NetworkHandler::handleSetWallpaper
         );
 
         // S2C: 同步壁纸给玩家
-        registrar.playToClient(
+        MCphoneNetwork.registerToClient(
+                registrar,
                 SyncWallpaperPacket.TYPE,
                 SyncWallpaperPacket.STREAM_CODEC,
                 NetworkHandler::handleSyncWallpaper
         );
 
         // C2S: 玩家给手机起名
-        registrar.playToServer(
+        MCphoneNetwork.registerToServer(
+                registrar,
                 SetDeviceNamePacket.TYPE,
                 SetDeviceNamePacket.STREAM_CODEC,
                 NetworkHandler::handleSetDeviceName
         );
 
         // C2S: 玩家在手机里点了末影箱
-        registrar.playToServer(
+        MCphoneNetwork.registerToServer(
+                registrar,
                 OpenEnderChestPacket.TYPE,
                 OpenEnderChestPacket.STREAM_CODEC,
                 NetworkHandler::handleOpenEnderChest
@@ -91,7 +94,8 @@ public final class NetworkHandler {
         // 无条件注册，不看服务端装没装 Waystones：网络包类型的注册两端必须
         // 对称，少注册一个，装了 Waystones 的客户端发来这个包时，服务端会
         // 因为不认识它而把玩家踢下线。装没装的判断放在处理函数里。
-        registrar.playToServer(
+        MCphoneNetwork.registerToServer(
+                registrar,
                 OpenWaystoneSelectionPacket.TYPE,
                 OpenWaystoneSelectionPacket.STREAM_CODEC,
                 NetworkHandler::handleOpenWaystoneSelection
@@ -109,17 +113,14 @@ public final class NetworkHandler {
     //  处理函数
 
     /** 服务端收到：记录壁纸选择，广播给该玩家的客户端 */
-    private static void handleSetWallpaper(SetWallpaperPacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            var player = ctx.player();
-            PhonePlayerData.of(player).setWallpaper(new WallpaperData(packet.wallpaperFileName()));
+    private static void handleSetWallpaper(SetWallpaperPacket packet, ServerPlayer player) {
+        PhonePlayerData.of(player).setWallpaper(new WallpaperData(packet.wallpaperFileName()));
 
-            // 发回给该玩家确认
-            ctx.reply(new SyncWallpaperPacket(packet.wallpaperFileName()));
+        // 发回给该玩家确认
+        MCphoneNetwork.sendToPlayer(player, new SyncWallpaperPacket(packet.wallpaperFileName()));
 
-            MCphone.LOGGER.debug("玩家 {} 设置壁纸: {}", player.getName().getString(),
-                    packet.wallpaperFileName().isEmpty() ? "默认" : packet.wallpaperFileName());
-        });
+        MCphone.LOGGER.debug("玩家 {} 设置壁纸: {}", player.getName().getString(),
+                packet.wallpaperFileName().isEmpty() ? "默认" : packet.wallpaperFileName());
     }
 
     /**
@@ -134,26 +135,23 @@ public final class NetworkHandler {
      * ItemStack.matches 比对上一次的快照，组件变了就自动下发。饰品栏
      * 不归原版管，故统一调一次 writeBack，由位置自己决定要不要动作。
      */
-    private static void handleSetDeviceName(SetDeviceNamePacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            var player = ctx.player();
-            ItemStack stack = packet.location().resolve(player);
+    private static void handleSetDeviceName(SetDeviceNamePacket packet, ServerPlayer player) {
+        ItemStack stack = packet.location().resolve(player);
 
-            // 那个位置上不是手机就什么都不做：位置由客户端给出，可能已经
-            // 失效（手机被丢掉了），也可能是伪造的
-            if (!PhoneItem.isPhone(stack)) return;
+        // 那个位置上不是手机就什么都不做：位置由客户端给出，可能已经
+        // 失效（手机被丢掉了），也可能是伪造的
+        if (!PhoneItem.isPhone(stack)) return;
 
-            // 空名字＝清除设备名，恢复默认物品名 —— 这道规范化在 setDeviceName 里，
-            // 不在这儿：门面存在的理由就是收编调用点
-            String name = SetDeviceNamePacket.sanitize(packet.name());
-            PhoneItemData.setDeviceName(stack, name);
+        // 空名字＝清除设备名，恢复默认物品名 —— 这道规范化在 setDeviceName 里，
+        // 不在这儿：门面存在的理由就是收编调用点
+        String name = SetDeviceNamePacket.sanitize(packet.name());
+        PhoneItemData.setDeviceName(stack, name);
 
-            // 手上与背包里的改完原版自会同步，饰品栏得显式写回去通知 Curios
-            packet.location().writeBack(player, stack);
+        // 手上与背包里的改完原版自会同步，饰品栏得显式写回去通知 Curios
+        packet.location().writeBack(player, stack);
 
-            MCphone.LOGGER.debug("玩家 {} 设置设备名: {}", player.getName().getString(),
-                    name.isBlank() ? "(清除)" : name);
-        });
+        MCphone.LOGGER.debug("玩家 {} 设置设备名: {}", player.getName().getString(),
+                name.isBlank() ? "(清除)" : name);
     }
 
     /**
@@ -166,30 +164,26 @@ public final class NetworkHandler {
      * 与方块末影箱、跨维度完全互通，不另存一份数据，也就不存在两边
      * 不同步的问题。
      */
-    private static void handleOpenEnderChest(OpenEnderChestPacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            if (!(ctx.player() instanceof ServerPlayer player)) return;
+    private static void handleOpenEnderChest(OpenEnderChestPacket packet, ServerPlayer player) {
+        if (!PhoneItem.isCarriedBy(player)) {
+            MCphone.LOGGER.debug("玩家 {} 请求开末影箱但身上没有手机，已忽略",
+                    player.getName().getString());
+            return;
+        }
 
-            if (!PhoneItem.isCarriedBy(player)) {
-                MCphone.LOGGER.debug("玩家 {} 请求开末影箱但身上没有手机，已忽略",
-                        player.getName().getString());
-                return;
-            }
+        // 买过了吗。安装是纯客户端动作，改个客户端就能把 App 塞进主屏，
+        // 购买那一步完全绕开——所以服务端必须自己问一句
+        if (!AppAccess.canUse(player, APP_ENDER_CHEST)) {
+            notPurchased(player);
+            return;
+        }
 
-            // 买过了吗。安装是纯客户端动作，改个客户端就能把 App 塞进主屏，
-            // 购买那一步完全绕开——所以服务端必须自己问一句
-            if (!AppAccess.canUse(player, APP_ENDER_CHEST)) {
-                notPurchased(player);
-                return;
-            }
-
-            PlayerEnderChestContainer enderChest = player.getEnderChestInventory();
-            player.openMenu(new SimpleMenuProvider(
-                    (containerId, inventory, p) -> new PhoneContainerMenu(
-                            ModMenus.ENDER_CHEST.get(), containerId, inventory,
-                            enderChest, ModMenus.ENDER_CHEST_SIZE),
-                    Component.translatable("mcphone.container.ender_chest")));
-        });
+        PlayerEnderChestContainer enderChest = player.getEnderChestInventory();
+        player.openMenu(new SimpleMenuProvider(
+                (containerId, inventory, p) -> new PhoneContainerMenu(
+                        ModMenus.ENDER_CHEST.get(), containerId, inventory,
+                        enderChest, ModMenus.ENDER_CHEST_SIZE),
+                Component.translatable("mcphone.container.ender_chest")));
     }
 
     /**
@@ -208,36 +202,29 @@ public final class NetworkHandler {
      * 也就发不出这个包。能走到这里，说明两端装的模组不一致、对方改了 API，
      * 或者有人在伪造包——前两种玩家有权知道，第三种告诉他也无妨。
      */
-    private static void handleOpenWaystoneSelection(OpenWaystoneSelectionPacket packet,
-                                                    IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            if (!(ctx.player() instanceof ServerPlayer player)) return;
+    private static void handleOpenWaystoneSelection(OpenWaystoneSelectionPacket packet, ServerPlayer player) {
+        if (!PhoneItem.isCarriedBy(player)) {
+            MCphone.LOGGER.debug("玩家 {} 请求开传送石但身上没有手机，已忽略",
+                    player.getName().getString());
+            return;
+        }
 
-            if (!PhoneItem.isCarriedBy(player)) {
-                MCphone.LOGGER.debug("玩家 {} 请求开传送石但身上没有手机，已忽略",
-                        player.getName().getString());
-                return;
-            }
+        if (!AppAccess.canUse(player, APP_WAYSTONE)) {
+            notPurchased(player);
+            return;
+        }
 
-            if (!AppAccess.canUse(player, APP_WAYSTONE)) {
-                notPurchased(player);
-                return;
-            }
-
-            if (!com.november.mcphone.compat.WaystonesCompat.openSelection(player)) {
-                // true = 显示在物品栏上方那一行，不占聊天记录。与 Waystones
-                // 自己报传送失败时的位置一致，玩家不会觉得是两个模组在说话
-                player.displayClientMessage(
-                        Component.translatable("mcphone.waystone.unavailable"), true);
-            }
-        });
+        if (!com.november.mcphone.compat.WaystonesCompat.openSelection(player)) {
+            // true = 显示在物品栏上方那一行，不占聊天记录。与 Waystones
+            // 自己报传送失败时的位置一致，玩家不会觉得是两个模组在说话
+            player.displayClientMessage(
+                    Component.translatable("mcphone.waystone.unavailable"), true);
+        }
     }
 
     /** 客户端收到：更新本地缓存的壁纸纹理引用（PhoneScreen 每帧查询） */
-    private static void handleSyncWallpaper(SyncWallpaperPacket packet, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> {
-            WakeholderData.setWallpaperFileName(packet.wallpaperFileName());
-        });
+    private static void handleSyncWallpaper(SyncWallpaperPacket packet) {
+        WakeholderData.setWallpaperFileName(packet.wallpaperFileName());
     }
 
     /**

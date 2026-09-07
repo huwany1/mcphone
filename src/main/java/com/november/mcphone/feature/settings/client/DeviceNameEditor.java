@@ -4,6 +4,7 @@ import com.november.mcphone.core.PhoneItemData;
 import com.november.mcphone.core.PhoneLocation;
 import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.PhoneTheme;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.settings.net.SetDeviceNamePacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -12,7 +13,6 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * 设备名称编辑界面 —— 由 PhoneScreen 嵌入渲染。
@@ -221,7 +221,7 @@ public final class DeviceNameEditor {
     private void save() {
         if (box == null) return;
         String name = SetDeviceNamePacket.sanitize(box.getValue());
-        PacketDistributor.sendToServer(
+        MCphoneNetwork.sendToServer(
                 new SetDeviceNamePacket(name, location));
     }
 }

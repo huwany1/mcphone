@@ -2,6 +2,7 @@ package com.november.mcphone.feature.terminal.client;
 
 import com.november.mcphone.api.client.app.RequiredMod;
 import com.november.mcphone.core.client.PhoneApp;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.terminal.TerminalSlot;
 import com.november.mcphone.feature.terminal.integration.TerminalIntegration;
 import com.november.mcphone.feature.terminal.integration.Terminals;
@@ -13,7 +14,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.language.I18n;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.List;
 
@@ -98,7 +98,7 @@ public final class TerminalApp extends PhoneApp {
      */
     @Override
     public void onPress() {
-        PacketDistributor.sendToServer(new TerminalActionPacket(
+        MCphoneNetwork.sendToServer(new TerminalActionPacket(
                 Screen.hasShiftDown() || !hasInstalledTerminal()
                         ? TerminalActionPacket.Action.OPEN_SLOT_MENU
                         : TerminalActionPacket.Action.OPEN_TERMINAL));

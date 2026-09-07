@@ -1,8 +1,8 @@
 package com.november.mcphone.feature.enderchest.client;
 
 import com.november.mcphone.core.client.PhoneApp;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.enderchest.net.OpenEnderChestPacket;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * 便携末影箱 App：打开自己的末影箱，与方块末影箱、跨维度完全互通。
@@ -23,7 +23,7 @@ public final class EnderChestApp extends PhoneApp {
     @Override
     public void onPress() {
         // 只发包不自己开界面：容器菜单必须由服务端 openMenu 建立，界面由原版流程自动弹出
-        PacketDistributor.sendToServer(new OpenEnderChestPacket());
+        MCphoneNetwork.sendToServer(new OpenEnderChestPacket());
     }
 
     /**

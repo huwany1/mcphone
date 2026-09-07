@@ -6,6 +6,7 @@ import com.november.mcphone.core.client.PhoneSkin;
 import com.november.mcphone.core.client.PhoneTheme;
 import com.november.mcphone.core.client.PlayerAvatar;
 import com.november.mcphone.core.client.ImageCodec;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.chat.ChatImage;
 import com.november.mcphone.feature.chat.ChatMessage;
 import com.november.mcphone.feature.chat.ImageBody;
@@ -26,7 +27,6 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -244,7 +244,7 @@ public final class ChatConversation {
         ChatClientCache.openConversation(peer);
         this.markedFrom = ChatClientCache.getMessages();
 
-        PacketDistributor.sendToServer(new RequestMessagesPacket(peer));
+        MCphoneNetwork.sendToServer(new RequestMessagesPacket(peer));
     }
 
     public boolean isViewing(UUID other) {
@@ -806,7 +806,7 @@ public final class ChatConversation {
         String text = box.getValue();
         if (text.isBlank()) return;
 
-        PacketDistributor.sendToServer(new SendChatMessagePacket(peer, text));
+        MCphoneNetwork.sendToServer(new SendChatMessagePacket(peer, text));
         box.setValue("");
 
         // 回到底部，自己刚发的那条得看得见
@@ -829,7 +829,7 @@ public final class ChatConversation {
         if (now - lastRequestMs < REFRESH_INTERVAL_MS) return;
 
         lastRequestMs = now;
-        PacketDistributor.sendToServer(new RequestConversationsPacket());
+        MCphoneNetwork.sendToServer(new RequestConversationsPacket());
     }
 
     /** 会话开着时来了新消息，补一次已读上报：服务端只在拉历史时标已读 */
@@ -838,7 +838,7 @@ public final class ChatConversation {
         if (src == markedFrom || peer == null) return;
 
         markedFrom = src;
-        PacketDistributor.sendToServer(new MarkReadPacket(peer));
+        MCphoneNetwork.sendToServer(new MarkReadPacket(peer));
     }
 
     private ConversationSummary summary() {

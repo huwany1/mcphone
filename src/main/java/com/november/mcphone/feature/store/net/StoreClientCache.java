@@ -1,8 +1,8 @@
 package com.november.mcphone.feature.store.net;
 
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.store.PurchasedApps;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * 客户端这一侧记着"我买过哪些 App"。
@@ -60,13 +60,13 @@ public final class StoreClientCache {
 
     /** 向服务端要一份最新的。进商店时调 */
     public static void request() {
-        PacketDistributor.sendToServer(new RequestPurchasedAppsPacket());
+        MCphoneNetwork.sendToServer(new RequestPurchasedAppsPacket());
     }
 
     /** 发起一次购买。结果会以同步包的形式回来 */
     public static void purchase(ResourceLocation appId) {
         if (appId == null) return;
-        PacketDistributor.sendToServer(new PurchaseAppPacket(appId));
+        MCphoneNetwork.sendToServer(new PurchaseAppPacket(appId));
     }
 
     /**

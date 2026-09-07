@@ -2,6 +2,7 @@ package com.november.mcphone.feature.settings.client;
 
 import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.PhoneTheme;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.settings.net.SetWallpaperPacket;
 import com.november.mcphone.core.client.GuiUtil;
 import net.minecraft.Util;
@@ -9,7 +10,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.List;
 
@@ -265,14 +265,14 @@ public final class WallpaperPicker {
 
         if (hoveredIdx == -2) {
             // "恢复默认背景"
-            PacketDistributor.sendToServer(new SetWallpaperPacket(""));
+            MCphoneNetwork.sendToServer(new SetWallpaperPacket(""));
             return true;
         }
 
         if (hoveredIdx >= 0) {
             WallpaperStore.WallpaperEntry wp = WallpaperStore.getWallpaper(hoveredIdx);
             if (wp != null) {
-                PacketDistributor.sendToServer(new SetWallpaperPacket(wp.fileName()));
+                MCphoneNetwork.sendToServer(new SetWallpaperPacket(wp.fileName()));
                 return true;
             }
         }

@@ -5,6 +5,7 @@ import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.GuiUtil;
 import com.november.mcphone.core.client.PhoneSkin;
 import com.november.mcphone.core.client.PhoneTheme;
+import com.november.mcphone.core.net.MCphoneNetwork;
 import com.november.mcphone.feature.music.PlayMode;
 import com.november.mcphone.feature.music.Track;
 import com.november.mcphone.feature.music.client.playback.AudioDecoders;
@@ -17,7 +18,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.List;
 
@@ -89,7 +89,7 @@ public final class MusicPage {
         MusicSources.refreshAll();
 
         // 唱片仓的真值在服务端，进来先要一份，否则会先显示上一次的快照
-        PacketDistributor.sendToServer(new DiscActionPacket(DiscActionPacket.Action.QUERY));
+        MCphoneNetwork.sendToServer(new DiscActionPacket(DiscActionPacket.Action.QUERY));
     }
 
     /** 离开 App 刻意不停音乐；退出世界时才由 LocalPlayback.shutdown 收掉 */
@@ -409,7 +409,7 @@ public final class MusicPage {
 
         // 开背包键必须先判：空仓时它盖在「整条＝放入」上面
         if (hitAt(mx, my, discBackpackX, btnY2)) {
-            PacketDistributor.sendToServer(new OpenDiscBayPacket());
+            MCphoneNetwork.sendToServer(new OpenDiscBayPacket());
             return true;
         }
 
@@ -430,7 +430,7 @@ public final class MusicPage {
     }
 
     private static void send(DiscActionPacket.Action action) {
-        PacketDistributor.sendToServer(new DiscActionPacket(action));
+        MCphoneNetwork.sendToServer(new DiscActionPacket(action));
     }
 
     private boolean hitAt(double mx, double my, int bx, int by) {
