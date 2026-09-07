@@ -32,6 +32,15 @@ on:
         description: '自定义版本号（仅当上面选 custom 时填，形如 1.11.0）'
         required: false
         type: string
+      release_type:
+        description: '发布渠道（beta/alpha 会把 GitHub Release 标成预发布，两个平台也按这个渠道收）'
+        required: true
+        type: choice
+        default: release
+        options:
+          - release
+          - beta
+          - alpha
       dry_run:
         description: '试跑：构建与校验照跑，但不提交、不打 tag、不发布'
         required: false
@@ -217,13 +226,21 @@ jobs:
           JAR_PATH: ${{ steps.find-jar.outputs.jar_path }}
           TAG: ${{ steps.ver.outputs.tag }}
           NOTES_FILE: ${{ steps.notes.outputs.file }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
         run: |
           set -euo pipefail
           TITLE="MCphone NeoForge 1.21.1 ${TAG}"
+          # beta / alpha 一律标成预发布：GitHub 上那一版不会顶掉 Latest，
+          # 玩家从仓库首页点下载拿到的仍然是上一个正式版
+          PRERELEASE=""
+          if [ "$RELEASE_TYPE" != "release" ]; then
+            TITLE="$TITLE ($RELEASE_TYPE)"
+            PRERELEASE="--prerelease"
+          fi
           if [ -n "$NOTES_FILE" ]; then
-            gh release create "$TAG" "$JAR_PATH" --title "$TITLE" --notes-file "$NOTES_FILE"
+            gh release create "$TAG" "$JAR_PATH" --title "$TITLE" $PRERELEASE --notes-file "$NOTES_FILE"
           else
-            gh release create "$TAG" "$JAR_PATH" --title "$TITLE" --generate-notes
+            gh release create "$TAG" "$JAR_PATH" --title "$TITLE" $PRERELEASE --generate-notes
           fi
 
       - name: 试跑：只报告，不发布
@@ -314,7 +331,7 @@ jobs:
           files: ${{ steps.find-jar.outputs.jar_path }}
           name: MCphone NeoForge 1.21.1 ${{ steps.ver.outputs.tag }}
           version: ${{ steps.ver.outputs.new }}
-          version-type: release
+          version-type: ${{ inputs.release_type }}
           changelog-file: ${{ steps.changelog.outputs.file }}
           loaders: neoforge
           game-versions: ${{ steps.find-jar.outputs.mc_version }}
@@ -333,7 +350,7 @@ jobs:
           files: ${{ steps.find-jar.outputs.jar_path }}
           name: MCphone NeoForge 1.21.1 ${{ steps.ver.outputs.tag }}
           version: ${{ steps.ver.outputs.new }}
-          version-type: release
+          version-type: ${{ inputs.release_type }}
           changelog-file: ${{ steps.changelog.outputs.file }}
           loaders: neoforge
           game-versions: ${{ steps.find-jar.outputs.mc_version }}
