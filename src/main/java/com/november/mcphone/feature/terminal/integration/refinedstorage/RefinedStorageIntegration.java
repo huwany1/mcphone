@@ -66,10 +66,9 @@ public final class RefinedStorageIntegration implements TerminalIntegration {
      * {@link TerminalSlotReference} 的类注释。
      */
     private static SlotReference referenceFor(TerminalSource source) {
-        return switch (source) {
-            case TerminalSource.PhoneSlot ignored -> TerminalSlotReference.phoneSlot();
-            case TerminalSource.InventorySlot(int index) -> new TerminalSlotReference(index);
-        };
+        return source.map(
+                ignored -> TerminalSlotReference.phoneSlot(),
+                inventorySlot -> new TerminalSlotReference(inventorySlot.index()));
     }
 
     @Override

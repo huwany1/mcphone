@@ -599,58 +599,50 @@ tasks.register('assertTests') {
 tasks.named('check').configure { dependsOn tasks.named('assertTests') }
 
 // ============================================================
-//  Java 21 专有 API 校验
+//  Java 17 兼容校验
 // ============================================================
 //
-// 1.20.1 那一支跑在 Java 17 上。源码里一旦出现 21 才有的东西，那一支就编不过，
-// 而这边编得好好的，什么都不会说。
+// 1.20.1 那一支跑在 Java 17 上。源码里一旦出现 18~21 才有的东西，那一支就编不过，
+// 而这边（21）编得好好的，什么都不会说。
 //
-// 眼下只卡一样：Math.clamp（Java 21 新增）。它不是随便挑的：
+// 做法：同一份源码、同一份类路径，加 --release 17 再编一遍。
 //
-//   - 它是【库方法】不是语法，除了 grep 没有别的东西扫得出来
-//   - 报错是 cannot find symbol，看着像打错字，跟"Java 版本"四个字毫无关联
-//   - IDE 的检查会主动建议拿它替掉 Mth.clamp —— 也就是说，把它改回来是一个
-//     完全合理、不会有人拦的动作。这条规矩不写成断言，就只活在某一次提交的意图里
+// 为什么是 --release，不是 -source/-target，也不是 grep
 //
-// 换法：net.minecraft.util.Mth.clamp，int/long/float/double 四个重载都在。
+// -source 17 -target 17 【只管语法】。实测（JDK 21 的 javac）：List.getFirst()、
+// Math.ceilDiv、HashMap.newHashMap、Math.clamp、StringBuilder.repeat 这五个
+// 18~21 新增的库方法，-source/-target 一个都不拦，--release 17 五个全拦 ——
+// 差别在于 --release 会把 java.* 的签名换成 17 那一版，前者仍拿当前 JDK 的解析。
 //
-// 有一处行为差异，知道就行，不必改回去：Math.clamp 在 min > max 时抛
-// IllegalArgumentException，Mth.clamp 不抛，静默返回某一侧边界。也就是说
-// Math.clamp 顺带充当的那个"边界算反了就当场炸"的断言没有了。换的时候 28 处
-// 上界逐个查过：滚动量全是 Math.max(0, …) 兜住的，只有两个滑块把手
-// （HudPage、UiScalePage）在窗口窄到 barW < KNOB_W 时能倒置——而那一处正好是
-// 从"渲染里抛异常炸掉整个界面"退化成"把手贴在左边"，方向是变安全的。
+// 这里原先是五条正则（Math.clamp、记录模式、类型模式、when 守卫、字符串模板）。
+// 它有三个躲不掉的毛病：
 //
-// 还没卡进来的，等 switch 那一处退回 instanceof 链之后一起加：switch 里的
-// 类型模式与记录模式（JEP 440/441，core/PhoneLocation 眼下还在用），字符串模板。
-tasks.register('verifyNoJava21Api') {
-    description = '校验源码里没有 Java 21 才有的 API（1.20.1 那一支跑在 17 上）'
+//   覆盖不全  SequencedCollection 那一组（IDE 会主动建议把 get(0) 换成 getFirst()）、
+//             instanceof 里的记录模式、case null、case List<String> l 这种带泛型的、
+//             以及 18~21 一堆别的库方法 —— 每一条都得单独追一遍，追漏了是静默的
+//   会误报    扫的是原始行，注释里举个反例说明"别这么写"就把 CI 弄红了
+//   会写歪    正则本身没有任何东西守着，而它是唯一的守卫
+//
+// javac 三样都没有：它认的是真正的语法树和真正的 java.* 签名。
+//
+// 一条曾经的顾虑，实测不成立：以为"MC 的类文件是 65 版，--release 17 用不了"。
+// --release 只换 java.* 的签名，不碰用户 classpath —— 拿真的
+// neoforge-21.1.248-merged.jar 加 --release 17 编全树，266 个文件，退出码 0。
+//
+// 这个任务只保证【能编】，不保证行为一致：两个版本上同一段代码可能编得过、
+// 跑出来不一样（1.20.1 上没有 ByteBufCodecs/StreamCodec 这类东西，那些地方仍然
+// 要各写各的）。真正的等价性靠那一支自己的 build 与断言测试。
+tasks.register('verifyJava17Compatible', JavaCompile) {
+    description = '拿 --release 17 把源码再编一遍：1.20.1 那一支跑在 17 上'
     group = 'verification'
 
-    // docs/ 也要扫：AddonApiExamples 是给附属作者照抄的示例，它带头用错更糟
-    def scanned = files(
-            fileTree('src/main/java') { include '**/*.java' },
-            fileTree('docs') { include '**/*.java' })
-    def root = projectDir
-
-    inputs.files(scanned)
-
-    doLast {
-        def offenders = []
-        scanned.each { f ->
-            def rel = root.toPath().relativize(f.toPath()).toString()
-            f.eachLine('UTF-8') { line, n ->
-                if (line.contains('Math.clamp(')) {
-                    offenders << "${rel}:${n}  Math.clamp —— 换成 net.minecraft.util.Mth.clamp"
-                }
-            }
-        }
-        if (!offenders.isEmpty()) {
-            throw new GradleException(
-                    "用到了 Java 21 才有的 API，1.20.1 那一支会编不过：\n  " + offenders.join('\n  '))
-        }
-        logger.lifecycle('Java 21 专有 API 校验通过')
-    }
+    // docs/ 一起编：AddonApiExamples 是给附属作者照抄的示例，那几份断言测试也要
+    // 跟着移植过去，它们带头用 21 的东西一样是坑
+    source = files(sourceSets.main.java, assertTestsSource)
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('classes/java17-check')
+    options.release = 17
+    javaCompiler = javaToolchains.compilerFor(projectToolchain)
 }
 
-tasks.named('check').configure { dependsOn tasks.named('verifyNoJava21Api') }
+tasks.named('check').configure { dependsOn tasks.named('verifyJava17Compatible') }

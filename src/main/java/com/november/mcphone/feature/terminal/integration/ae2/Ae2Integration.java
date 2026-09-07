@@ -83,10 +83,9 @@ public final class Ae2Integration implements TerminalIntegration {
 
     /** 把"在哪儿"翻译成 AE2 认的 locator。背包那一种是 AE2 自带的，卡槽那一种是我们注册的 */
     private static ItemMenuHostLocator locatorFor(TerminalSource source) {
-        return switch (source) {
-            case TerminalSource.PhoneSlot ignored -> new TerminalSlotLocator();
-            case TerminalSource.InventorySlot(int index) -> MenuLocators.forInventorySlot(index);
-        };
+        return source.map(
+                ignored -> new TerminalSlotLocator(),
+                inventorySlot -> MenuLocators.forInventorySlot(inventorySlot.index()));
     }
 
     @Override
