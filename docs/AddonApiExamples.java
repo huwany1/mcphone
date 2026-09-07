@@ -8,6 +8,7 @@ import com.november.mcphone.api.client.store.AppInfo;
 import com.november.mcphone.api.client.store.IAppSource;
 import com.november.mcphone.api.client.ui.IPhonePage;
 import com.november.mcphone.api.client.ui.PhoneCanvas;
+import com.november.mcphone.api.client.ui.PhoneMultiLineEditBox;
 import com.november.mcphone.api.cost.EmcWallets;
 import com.november.mcphone.api.cost.IAppPriceProvider;
 import com.november.mcphone.api.cost.ICost;
@@ -167,6 +168,59 @@ public final class AddonApiExamples {
         @Override public void onClose() {}
     }
 
+    /**
+     * 一页带多行输入框的 —— 原版 {@code MultiLineEditBox} 直接摆进来，玩家把界面调大之后
+     * 正文顶上几行会整行不见（它自己内部那句裁剪不看 PoseStack）。用这个替身就没事。
+     *
+     * 【不用把 PhoneCanvas 交给它】：缩放是它自己从 GuiGraphics 的变换矩阵里读的。
+     */
+    public static final class NotePadPage implements IPhonePage {
+
+        private PhoneMultiLineEditBox box;
+
+        @Override
+        public void render(PhoneCanvas c) {
+            // 坐标就是 canvas 给的那一套，不用换算；右边留出 8 像素给滚动条
+            final int x = c.x() + 4;
+            final int y = c.y() + 4;
+
+            if (box == null) {
+                box = new PhoneMultiLineEditBox(c.font(), x, y,
+                        c.width() - 8 - 8, c.height() - 8,
+                        Component.translatable("mymod.notepad.placeholder"),
+                        Component.translatable("mymod.notepad.title"));
+                box.setCharacterLimit(2000);
+                box.setFocused(true);
+            } else {
+                // 手机居中的位置随窗口大小变，每帧同步一次
+                box.setX(x);
+                box.setY(y);
+            }
+
+            box.render(c.graphics(), c.mouseX(), c.mouseY(), c.partialTick());
+        }
+
+        // 键盘全转给它，并且必须 capturesKeyboard，否则打拼音按到 e 会命中背包键
+        @Override public boolean capturesKeyboard() { return true; }
+
+        @Override public boolean keyPressed(int key, int scan, int mods) {
+            return box != null && box.keyPressed(key, scan, mods);
+        }
+
+        @Override public boolean charTyped(char ch, int mods) {
+            return box != null && box.charTyped(ch, mods);
+        }
+
+        @Override public boolean mouseClicked(double x, double y, int button) {
+            return box != null && box.mouseClicked(x, y, button);
+        }
+
+        @Override public boolean mouseScrolled(double x, double y, double amount) {
+            // 原版收的是 scrollX / scrollY 两个量，横向给 0
+            return box != null && box.mouseScrolled(x, y, 0.0, amount);
+        }
+    }
+
     //  第 3 节：商店来源 
     public static final class MySource implements IAppSource {
         @Override
@@ -231,8 +285,13 @@ public final class AddonApiExamples {
 
     //  第 5 节：版本判断 
     static void versionGate() {
+        // VERSION 从 1.10.4 起是在静态块里赋的，读它编出来的是 getstatic，问的是运行时
+        // 真正装着的那个宿主。【前提是拿 1.10.4 或更新的 MCphone 编译】——在那之前它是
+        // 编译期常量，会被内联进这里，判断到的是编译时的版本。
+        // 【另一条坑】：别在这个方法里直接 new PhoneMultiLineEditBox——旧版上 JVM 校验这个
+        // 方法时就抛 NoClassDefFoundError，轮不到那句 if。两条坑各管各的。
         if (MCphoneApi.VERSION >= 2) {
-            // NewFeatureBridge.doThing();
+            // MultiLineBridge.create(...);   // 这个类里才引用 PhoneMultiLineEditBox
         }
     }
 

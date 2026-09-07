@@ -149,6 +149,10 @@ public final class GuiUtil {
      *
      * 只取两个角够用：手机这一层只有平移和等比缩放，没有旋转。真转起来的话包围盒得取
      * 四个角，那时候再说。
+     *
+     * 【原版控件自己内部那句也踩同一个坑】，而且它在方法正中间、改不到——摆一个原版
+     * {@code MultiLineEditBox} 进手机，放大后正文顶上几行会整行不见。要在手机里用原版的
+     * 滚动控件，先看 {@link com.november.mcphone.api.client.ui.PhoneMultiLineEditBox}。
      */
     public static void enableScissor(GuiGraphics g, int x1, int y1, int x2, int y2) {
         Matrix4f matrix = g.pose().last().pose();
