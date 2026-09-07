@@ -3,6 +3,7 @@ package com.november.mcphone;
 import com.november.mcphone.core.client.AppHotkeyHandler;
 import com.november.mcphone.core.client.ClientConfig;
 import com.november.mcphone.core.client.MCphoneKeyBindings;
+import com.november.mcphone.core.client.PhoneHud;
 import com.november.mcphone.core.client.PhoneContainerScreen;
 import com.november.mcphone.core.client.PhoneKeyHandler;
 import com.november.mcphone.core.client.PhoneScreenRegistry;
@@ -55,9 +56,15 @@ public class MCphoneClient {
 
         modEventBus.addListener(MCphoneKeyBindings::register);
 
+        // 副手 HUD 那一层。插在原版战利品条之后：玩法 HUD 之上，F3 与聊天框之下
+        modEventBus.addListener(PhoneHud::onRegisterLayers);
+
         NeoForge.EVENT_BUS.addListener(CameraHandler::onClientTick);
 
         NeoForge.EVENT_BUS.addListener(PhoneKeyHandler::onClientTick);
+
+        // 手机进出副手、Alt 按下松开都在这条 tick 里判，见 PhoneHud
+        NeoForge.EVENT_BUS.addListener(PhoneHud::onClientTick);
 
         // 每个 App 自己的快捷键。它不是 KeyMapping，只能听按下事件，理由见 AppHotkeys。
         // 鼠标键单独一条：那类事件与键盘的不是同一个类，而且它可以取消
@@ -79,6 +86,10 @@ public class MCphoneClient {
         // 音乐还在放，OpenAL 设备句柄也会漏
         NeoForge.EVENT_BUS.addListener(
                 (ClientPlayerNetworkEvent.LoggingOut event) -> {
+                    // 排在最前：它要在下面那些缓存被清掉之前把会话存下来。
+                    // 这条路上不能碰 setScreen，理由见 PhoneHud.onWorldLeave
+                    PhoneHud.onWorldLeave();
+
                     ChatClientCache.clear();
                     ChatImageCache.clear();
                     ChatImageSender.clear();
