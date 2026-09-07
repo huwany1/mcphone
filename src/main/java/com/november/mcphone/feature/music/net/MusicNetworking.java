@@ -1,7 +1,7 @@
 package com.november.mcphone.feature.music.net;
 
-import com.november.mcphone.core.ModAttachments;
 import com.november.mcphone.core.PhoneItem;
+import com.november.mcphone.core.PhonePlayerData;
 import com.november.mcphone.core.net.RequestThrottle;
 import com.november.mcphone.feature.music.DiscService;
 import com.november.mcphone.feature.music.DiscState;
@@ -112,7 +112,7 @@ public final class MusicNetworking {
 
     /** 打包服务端真值。下发的是外放的终点刻而不是布尔量，见 {@link DiscService#playingUntil} */
     private static SyncDiscStatePacket stateOf(ServerPlayer player) {
-        DiscState state = player.getData(ModAttachments.DISC.get());
+        DiscState state = PhonePlayerData.of(player).disc();
         return new SyncDiscStatePacket(state.disc().copy(), DiscService.playingUntil(player));
     }
 

@@ -1,8 +1,8 @@
 package com.november.mcphone.feature.music;
 
 import com.november.mcphone.compat.NetMusicCompat;
-import com.november.mcphone.core.ModAttachments;
 import com.november.mcphone.core.PhoneItem;
+import com.november.mcphone.core.PhonePlayerData;
 import com.november.mcphone.feature.music.net.PlayNetSongPacket;
 import com.november.mcphone.feature.music.net.StopNetSongPacket;
 import net.minecraft.core.RegistryAccess;
@@ -61,7 +61,7 @@ public final class DiscService {
     public static Outcome insert(ServerPlayer player) {
         if (!PhoneItem.isCarriedBy(player)) return Outcome.NOTHING;
 
-        DiscState state = player.getData(ModAttachments.DISC.get());
+        DiscState state = PhonePlayerData.of(player).disc();
         if (state.hasDisc()) return Outcome.OCCUPIED;
 
         ItemStack held = player.getItemInHand(InteractionHand.MAIN_HAND);
@@ -71,7 +71,7 @@ public final class DiscService {
         ItemStack one = held.copyWithCount(1);
         held.shrink(1);
 
-        player.setData(ModAttachments.DISC.get(), state.withDisc(one));
+        PhonePlayerData.of(player).setDisc(state.withDisc(one));
         return Outcome.OK;
     }
 
@@ -82,14 +82,14 @@ public final class DiscService {
     public static Outcome eject(ServerPlayer player) {
         if (!PhoneItem.isCarriedBy(player)) return Outcome.NOTHING;
 
-        DiscState state = player.getData(ModAttachments.DISC.get());
+        DiscState state = PhonePlayerData.of(player).disc();
         if (!state.hasDisc()) return Outcome.NOTHING;
 
         ItemStack disc = state.disc().copy();
         if (!player.getInventory().add(disc)) return Outcome.INVENTORY_FULL;
 
         stopSound(player, state);
-        player.setData(ModAttachments.DISC.get(), DiscState.EMPTY);
+        PhonePlayerData.of(player).setDisc(DiscState.EMPTY);
         return Outcome.OK;
     }
 
@@ -98,7 +98,7 @@ public final class DiscService {
      * 下发终点而不是布尔量：服务端没有 tick 盯着唱片放完，布尔量会无声过期，客户端拿终点自己算。
      */
     public static long playingUntil(ServerPlayer player) {
-        return playingUntil(player, player.getData(ModAttachments.DISC.get()));
+        return playingUntil(player, PhonePlayerData.of(player).disc());
     }
 
     private static long playingUntil(ServerPlayer player, DiscState state) {
@@ -131,19 +131,18 @@ public final class DiscService {
     public static Outcome toggle(ServerPlayer player) {
         if (!PhoneItem.isCarriedBy(player)) return Outcome.NOTHING;
 
-        DiscState state = player.getData(ModAttachments.DISC.get());
+        DiscState state = PhonePlayerData.of(player).disc();
         if (!state.hasDisc()) return Outcome.NOTHING;
 
         if (isPlaying(player, state)) {
             stopSound(player, state);
-            player.setData(ModAttachments.DISC.get(), state.stopped());
+            PhonePlayerData.of(player).setDisc(state.stopped());
             return Outcome.OK;
         }
 
         if (!startSound(player, state.disc())) return Outcome.NOTHING;
 
-        player.setData(ModAttachments.DISC.get(),
-                state.playingSince(player.level().getGameTime()));
+        PhonePlayerData.of(player).setDisc(state.playingSince(player.level().getGameTime()));
         return Outcome.OK;
     }
 
@@ -237,11 +236,11 @@ public final class DiscService {
      * 必须趁旧唱片还在仓里时调：停止包是按那张唱片的音效 ID 发的。
      */
     public static void stopPlayback(ServerPlayer player) {
-        DiscState state = player.getData(ModAttachments.DISC.get());
+        DiscState state = PhonePlayerData.of(player).disc();
         if (state.startedTick() < 0) return;
 
         stopSound(player, state);
-        player.setData(ModAttachments.DISC.get(), state.stopped());
+        PhonePlayerData.of(player).setDisc(state.stopped());
     }
 
     /** 把已经在放的那一份掐掉。原版停止包按音效 ID 停，旁边放同一张唱片的唱片机也会被停，原版粒度如此 */

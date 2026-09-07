@@ -77,7 +77,7 @@ public class PhoneItem extends Item {
      */
     @Override
     public Component getName(ItemStack stack) {
-        String deviceName = stack.get(ModDataComponents.DEVICE_NAME.get());
+        String deviceName = PhoneItemData.getDeviceName(stack);
         if (deviceName != null && !deviceName.isBlank()) {
             return Component.literal(deviceName);
         }

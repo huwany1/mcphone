@@ -1,6 +1,6 @@
 package com.november.mcphone.feature.terminal;
 
-import com.november.mcphone.core.ModAttachments;
+import com.november.mcphone.core.PhonePlayerData;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
@@ -18,7 +18,7 @@ import net.minecraft.world.item.ItemStack;
  * 两个理由，第二个是硬的。
  *
  * 一、手机里的东西在这个模组里一律跟着玩家走：壁纸、笔记、聊天已读、唱片仓、买过的 App
- * 全是 {@link ModAttachments} 里的玩家附件。装在手机里的终端是同一类东西。
+ * 全在 {@link PhonePlayerData} 那一份里。装在手机里的终端是同一类东西。
  *
  * 二、<b>组件存不了它。</b>DataComponent 是不可变的，每次读出来是一份副本；而 AE2 与 RS
  * 都会往终端那个 ItemStack 上<b>写</b>——耗电、你在终端界面里调的排序与视图。它们每次都是
@@ -38,12 +38,12 @@ public final class TerminalSlot {
      * 别对返回值调 {@code copy()} 之后再交给它们。
      */
     public static ItemStack get(Player player) {
-        return player.getData(ModAttachments.PHONE_TERMINAL.get());
+        return PhonePlayerData.of(player).terminal();
     }
 
     /** 换掉手机里那台终端。会同步给客户端 */
     public static void set(Player player, ItemStack stack) {
-        player.setData(ModAttachments.PHONE_TERMINAL.get(), stack);
+        PhonePlayerData.of(player).setTerminal(stack);
     }
 
     /**

@@ -2,8 +2,8 @@ package com.november.mcphone.feature.store.net;
 
 import com.november.mcphone.MCphone;
 import com.november.mcphone.api.cost.ICost;
-import com.november.mcphone.core.ModAttachments;
 import com.november.mcphone.core.PhoneItem;
+import com.november.mcphone.core.PhonePlayerData;
 import com.november.mcphone.feature.store.AppPriceRegistry;
 import com.november.mcphone.feature.store.PurchasedApps;
 import com.november.mcphone.core.net.RequestThrottle;
@@ -100,7 +100,7 @@ public final class StoreNetworking {
                 return;
             }
 
-            PurchasedApps owned = player.getData(ModAttachments.PURCHASED_APPS.get());
+            PurchasedApps owned = PhonePlayerData.of(player).purchasedApps();
 
             // 已经买过就直接回一份同步，不重复扣。走到这里通常是客户端的
             // 缓存过期了（比如换了台设备登录），不是攻击，所以照常回话
@@ -129,7 +129,7 @@ public final class StoreNetworking {
                 return;
             }
 
-            player.setData(ModAttachments.PURCHASED_APPS.get(), owned.with(appId));
+            PhonePlayerData.of(player).setPurchasedApps(owned.with(appId));
             sync(player, ctx);
 
             MCphone.LOGGER.info("玩家 {} 购买了 App {}，代价 {}",
@@ -140,7 +140,7 @@ public final class StoreNetworking {
     /** 把这名玩家买过的全部回发给他 */
     private static void sync(ServerPlayer player, IPayloadContext ctx) {
         ctx.reply(new SyncPurchasedAppsPacket(
-                player.getData(ModAttachments.PURCHASED_APPS.get())));
+                PhonePlayerData.of(player).purchasedApps()));
     }
 
     private static void fail(ServerPlayer player, String key) {

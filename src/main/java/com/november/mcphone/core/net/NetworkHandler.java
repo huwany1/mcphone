@@ -1,9 +1,9 @@
 package com.november.mcphone.core.net;
 
 import com.november.mcphone.MCphone;
-import com.november.mcphone.core.ModAttachments;
-import com.november.mcphone.core.ModDataComponents;
+import com.november.mcphone.core.PhoneItemData;
 import com.november.mcphone.core.PhoneItem;
+import com.november.mcphone.core.PhonePlayerData;
 import com.november.mcphone.core.menu.ModMenus;
 import com.november.mcphone.core.menu.PhoneContainerMenu;
 import com.november.mcphone.feature.enderchest.net.OpenEnderChestPacket;
@@ -112,7 +112,7 @@ public final class NetworkHandler {
     private static void handleSetWallpaper(SetWallpaperPacket packet, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
             var player = ctx.player();
-            player.setData(ModAttachments.WALLPAPER.get(), new WallpaperData(packet.wallpaperFileName()));
+            PhonePlayerData.of(player).setWallpaper(new WallpaperData(packet.wallpaperFileName()));
 
             // 发回给该玩家确认
             ctx.reply(new SyncWallpaperPacket(packet.wallpaperFileName()));
@@ -143,20 +143,16 @@ public final class NetworkHandler {
             // 失效（手机被丢掉了），也可能是伪造的
             if (!PhoneItem.isPhone(stack)) return;
 
+            // 空名字＝清除设备名，恢复默认物品名 —— 这道规范化在 setDeviceName 里，
+            // 不在这儿：门面存在的理由就是收编调用点
             String name = SetDeviceNamePacket.sanitize(packet.name());
-            if (name.isEmpty()) {
-                // 空名字＝清除设备名，恢复默认物品名。
-                // 移除组件而不是存空串，"没起过名"与"起了空名"不该混淆
-                stack.remove(ModDataComponents.DEVICE_NAME.get());
-            } else {
-                stack.set(ModDataComponents.DEVICE_NAME.get(), name);
-            }
+            PhoneItemData.setDeviceName(stack, name);
 
             // 手上与背包里的改完原版自会同步，饰品栏得显式写回去通知 Curios
             packet.location().writeBack(player, stack);
 
             MCphone.LOGGER.debug("玩家 {} 设置设备名: {}", player.getName().getString(),
-                    name.isEmpty() ? "(清除)" : name);
+                    name.isBlank() ? "(清除)" : name);
         });
     }
 

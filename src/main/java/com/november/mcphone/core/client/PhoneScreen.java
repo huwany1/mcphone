@@ -5,6 +5,7 @@ import com.november.mcphone.api.client.app.IPhoneApp;
 import com.november.mcphone.api.client.store.AppInfo;
 import com.november.mcphone.api.client.ui.IPhonePage;
 import com.november.mcphone.api.client.ui.PhoneCanvas;
+import com.november.mcphone.core.PhoneItemData;
 import com.november.mcphone.core.PhoneLocation;
 import com.november.mcphone.feature.chat.client.ChatAddContact;
 import com.november.mcphone.feature.chat.client.ChatConversation;
@@ -842,8 +843,7 @@ public final class PhoneScreen extends Screen {
 
     private String currentDeviceNameLabel() {
         if (minecraft == null || minecraft.player == null) return "";
-        String name = location.resolve(minecraft.player)
-                .get(com.november.mcphone.core.ModDataComponents.DEVICE_NAME.get());
+        String name = PhoneItemData.getDeviceName(location.resolve(minecraft.player));
         return (name == null || name.isBlank())
                 ? Component.translatable("mcphone.settings.device_name_unset").getString()
                 : name;
