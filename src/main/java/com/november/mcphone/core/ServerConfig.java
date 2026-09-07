@@ -86,8 +86,9 @@ public final class ServerConfig {
                 .defineInRange("chatImageMaxKb", 512, 64, 768);
 
         TERMINAL_KEEP_POWERED = builder
-                .comment("装在手机卡槽里的那台终端，要不要由手机替它供电（一直保持满电）。",
-                        "开着（默认）：卡槽里的终端每秒被充满，于是它不会没电、也不用取出来充。",
+                .comment("装在手机卡槽里的那台终端，要不要由手机替它供电（用的时候一直是满的）。",
+                        "开着（默认）：打开终端的那一刻补满，之后只要还有界面开着就每秒补一次，",
+                        "  于是它不会没电、也不用取出来充。界面全关着时不补——那时候电量本来就不会变。",
                         "关掉：卡槽里的终端和拿在手上一样自己耗电，没电了就打不开——",
                         "  要充电得先从卡槽里取出来，充完再装回去。",
                         "为什么会想关：这等于给了那台终端无限电量，介意的整合包请关掉。",
@@ -96,7 +97,8 @@ public final class ServerConfig {
                         "充进去的电取不回来：AE2 与 RS 的终端都不允许外部抽电（canExtract 恒为 false），",
                         "所以这不是一台无限发电机。",
                         "Keep the terminal installed in the phone's terminal slot topped up (the phone powers it).",
-                        "On by default: it never runs out and never has to be taken out to charge.",
+                        "On by default: topped up when you open it, then once a second while a screen is open.",
+                        "It never runs out and never has to be taken out to charge.",
                         "Off: it drains like it would in your hand, exactly as before 1.10.0.",
                         "Only affects energy. Range, dimension and network binding stay AE2's / RS's call.")
                 .translation("mcphone.config.terminal_keep_powered")
