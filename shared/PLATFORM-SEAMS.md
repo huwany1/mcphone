@@ -304,7 +304,7 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 
 <!-- 下面这段由 ./gradlew updateSeamsDoc 生成，别手改：1.20.1-forge -->
 
-#### 共用代码引用了的（83）
+#### 共用代码引用了的（84）
 
 **新平台必须提供同名类型**，否则 shared/ 与共享层编不过。全限定名是硬约束；方法体是抄现成的一份还是自己写，看那个文件。
 
@@ -331,6 +331,7 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `feature.camera.client.CameraFlash`
 - `feature.chat.ChatMessage`
 - `feature.chat.ImageBody`
+- `feature.chat.MessageBody`
 - `feature.chat.TextBody`
 - `feature.chat.group.net.GroupRequestPacket`
 - `feature.chat.net.ChatImageDataPacket`
@@ -392,7 +393,7 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.SystemFiles`
 - `platform.client.VanillaAudio`
 
-#### 平台内部的（44）
+#### 平台内部的（43）
 
 只在这个平台自己的代码里用到。新平台不必提供同名类型。
 
@@ -405,7 +406,6 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `core.PhoneScreenOnCleanup`　—— 加载器导入
 - `core.script.net.ScriptNetworking`
 - `feature.camera.client.CameraHandler`　—— 加载器导入
-- `feature.chat.MessageBody`
 - `feature.chat.MessageKind`
 - `feature.chat.group.net.GroupNetworking`
 - `feature.chat.group.net.GroupResponsePacket`

@@ -22,6 +22,10 @@ public final class ChatConversation {
     private static final int INPUT_GAP = 2;
     private static final long REFRESH_INTERVAL_MS = 3000L;
     private ChatConversationChannel channel;
+    private final ChatReplyDraft reply = new ChatReplyDraft();
+    private ChatLayout.Rect cancelReply;
+    public ChatConversation() { composer.sendGuard(this::canSendReply); composer.clearAfterSend(() -> submission == null); }
+    private ChatReplySubmission submission;
     private final ChatMessagePane messages = new ChatMessagePane();
     private final ChatImageViewer viewer = new ChatImageViewer();
     private final ChatComposer composer = new ChatComposer(this::send,
@@ -34,7 +38,7 @@ public final class ChatConversation {
                 if (channel != null) channel.delete(message, request);
             }, request -> { if (channel != null) channel.cancelDelete(request); },
             key -> { var player = Minecraft.getInstance().player;
-                if (player != null) com.november.mcphone.platform.PlayerAccess.message(player, Component.translatable(key), true); }, this::favorite);
+                if (player != null) com.november.mcphone.platform.PlayerAccess.message(player, Component.translatable(key), true); }, this::favorite, this::replyTo);
     private UUID peer;
     private long lastRequestMs;
     private List<ChatMessage> markedFrom;
@@ -57,6 +61,7 @@ public final class ChatConversation {
     }
 
     public void close() {
+        cancelSubmission();
         if (channel != null) channel.close();
         channel = null;
         peer = null;
@@ -66,6 +71,7 @@ public final class ChatConversation {
     }
 
     private void resetComponents(boolean focused) {
+        reply.clear(); cancelReply=null; submission=null;
         actions.reset();
         messages.reset();
         viewer.dismiss();
@@ -100,15 +106,24 @@ public final class ChatConversation {
             com.november.mcphone.platform.PlayerAccess.message(Minecraft.getInstance().player, Component.translatable(error), true);
         var receipt = channel.receipt();
         if (receipt != null) actions.result(receipt.request(), receipt.result());
+        pollSubmission();
         actions.tick(System.currentTimeMillis());
         actions.reconcile(channel.messages());
         maybeRefresh();
         maybeMarkRead();
         int x = phoneLeft + PAD, w = screenW - PAD * 2;
         int inputTop = phoneTop + screenH - navH - ChatLayout.INPUT_HEIGHT - INPUT_GAP;
+        int replyTop = inputTop - (reply.quote() == null ? 0 : ChatReplyView.DRAFT_HEIGHT);
         int top = renderHeader(g, font, x, phoneTop + statusH + ChatLayout.TOP_GAP, w, mouseX, mouseY);
         ChatImageCache.beginFrame(peer);
-        messages.render(g, font, x, top, w, inputTop - INPUT_GAP, peer, selfId(), channel.group(), channel.messages(), channel::senderName);
+        messages.render(g, font, x, top, w, replyTop - INPUT_GAP, peer, selfId(), channel.group(), channel.messages(), channel::senderName);
+        cancelReply=null;
+        if (reply.quote() != null) {
+            ChatUi.glass(g,ChatGlass.Surface.CARD,x,replyTop,w,ChatReplyView.DRAFT_HEIGHT-2,false);
+            ChatReplyView.draw(g,font,reply.quote(),x+3,replyTop,w-17);
+            cancelReply=new ChatLayout.Rect(x+w-12,replyTop,12,ChatReplyView.DRAFT_HEIGHT-2);
+            ChatUi.buttonText(g,font,"×",x+w-6,replyTop+9,ChatLayout.TEXT_SCALE,FontPalette.body());
+        }
         composer.render(g, font, x, inputTop, w, mouseX, mouseY, partialTick);
         if (viewer.isOpen()) ChatImageCache.beginFrame(peer);
         viewer.render(g, font, phoneLeft, phoneTop + statusH, screenW,
@@ -126,6 +141,7 @@ public final class ChatConversation {
         if (viewer.mouseClicked(button)) return true;
         if (composer.contextMouseClicked(mx, my, button)) return true;
         if (actions.mouseClicked(mx, my, button, System.currentTimeMillis())) return true;
+        if (button == 0 && cancelReply != null && cancelReply.contains(mx,my)) { reply.clear(); cancelReply=null; return true; }
         if (button == 1) {
             if (composer.openContextMenu(mx, my)) { messages.clearSelection(); return true; }
             ChatMessage target = messages.messageAt(mx, my);
@@ -182,8 +198,57 @@ public final class ChatConversation {
     /** 服务端回声才插入消息，避免校验拒收后客户端还留下假消息。 */
     private void send(String text) {
         if (peer == null) return;
-        channel.send(text);
+        if (reply.id().isEmpty()) {
+            cancelSubmission();
+            channel.send(text);
+        } else {
+            UUID original = reply.id().orElseThrow();
+            var draft = composer.draft();
+            long now = submissionTime();
+            if (submission == null || !submission.matches(original,draft)) {
+                cancelSubmission();
+                submission = new ChatReplySubmission(original,draft,selfId(),peer,channel.group(),now);
+            } else submission.retry(now);
+            channel.send(text,reply.id(),java.util.Optional.of(submission.ticket()));
+        }
         messages.latest();
+    }
+
+    private void replyTo(UUID target, UUID message) {
+        if (channel == null || submission != null && !submission.timedOut() || !channel.target().equals(target)) return;
+        var original=channel.messages().stream().filter(m -> m.id().equals(message)).findFirst().orElse(null);
+        if (original == null) return;
+        cancelSubmission();
+        reply.select(com.november.mcphone.feature.chat.ChatQuote.from(original,messageSenderName(original)));
+        messages.clearSelection(); composer.dismissAttachmentMenu(); composer.focus(); cancelReply=null;
+    }
+    private void pollSubmission() {
+        if (submission == null) return;
+        var status = channel.replyStatus(submission.ticket());
+        var result=submission.poll(channel.messages(),selfId(),submissionTime());
+        if (status == ChatConversationChannel.ReplyStatus.ACCEPTED || result == ChatReplySubmission.Result.ACCEPTED) {
+            if (submission.complete(reply,composer::clearSubmitted)) cancelReply=null;
+            cancelSubmission();
+            return;
+        }
+        if (status != null) {
+            submission.rejected();
+            // GroupTransport 统一提示文字请求的错误；页面只恢复交互，避免重复提示。
+        } else if (result == ChatReplySubmission.Result.TIMEOUT && Minecraft.getInstance().player != null)
+            com.november.mcphone.platform.PlayerAccess.message(Minecraft.getInstance().player,Component.translatable("mcphone.chat.reply.timeout"),true);
+    }
+    private void cancelSubmission() {
+        if (submission != null && channel != null) channel.cancelReply(submission.ticket());
+        submission = null;
+    }
+    private static long submissionTime() { return System.nanoTime() / 1_000_000L; }
+    private boolean canSendReply() {
+        if (channel == null || selfId() == null || submission != null && !submission.timedOut()) return false;
+        if (submission != null && reply.id().isPresent() && submission.matches(reply.id().get(),composer.draft())) return true;
+        if (reply.id().isEmpty() || channel.messages().stream().anyMatch(m -> m.id().equals(reply.id().get()))) return true;
+        var player=Minecraft.getInstance().player;
+        if (player != null) com.november.mcphone.platform.PlayerAccess.message(player,Component.translatable("mcphone.chat.reply.unavailable"),true);
+        reply.clear(); cancelReply=null; return false;
     }
 
     private int renderHeader(GuiGraphics g, Font font, int x, int y, int w, int mx, int my) {
@@ -232,14 +297,14 @@ public final class ChatConversation {
         try {
             var result = com.november.mcphone.feature.chat.client.favorite.ChatFavorites.current().add(
                 new com.november.mcphone.feature.chat.client.favorite.FavoriteText(message,target,channel.group(),source.sender(),
-                    favoriteSender(source),channel.title(),fullText,source.time(),System.currentTimeMillis()));
+                    messageSenderName(source),channel.title(),fullText,source.time(),System.currentTimeMillis()));
             key = "mcphone.chat.favorite." + result.name().toLowerCase(java.util.Locale.ROOT);
         } catch (RuntimeException error) { key = "mcphone.chat.favorite.storage_error"; }
         var player = Minecraft.getInstance().player;
         if (player != null) com.november.mcphone.platform.PlayerAccess.message(player,Component.translatable(key),true);
     }
 
-    private String favoriteSender(ChatMessage message) {
+    private String messageSenderName(ChatMessage message) {
         var player = Minecraft.getInstance().player;
         if (player != null && player.getUUID().equals(message.sender())) return player.getName().getString();
         if (channel.group()) return channel.senderName(message);
