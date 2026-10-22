@@ -31,6 +31,22 @@ final class ChatComposer {
     private static int colorSendOff() { return FontPalette.muted(); }
     private static int cursorRoom(Font font) { return font.width("_"); }
     private final Consumer<String> onSend;
+    private java.util.function.BooleanSupplier sendGuard = () -> true;
+    void sendGuard(java.util.function.BooleanSupplier guard) { sendGuard=guard; }
+    void focus() { setFocused(true); }
+    private java.util.function.BooleanSupplier clearAfterSend = () -> true;
+    void clearAfterSend(java.util.function.BooleanSupplier policy) { clearAfterSend=policy; }
+    record Draft(String text, long revision) {}
+    private long revision;
+    Draft draft() { return new Draft(box == null ? "" : box.getValue(), revision); }
+    boolean clearSubmitted(Draft submitted) {
+        if (box == null || !draft().equals(submitted)) return false;
+        box.setValue(""); return true;
+    }
+    private void bindInput(EditBox input) {
+        box = input;
+        box.setResponder(ignored -> revision++);
+    }
     private final ChatInputMenu inputMenu;
     private EditBox box;
     private boolean sendHovered, attachBtnHovered, stickerHovered, attachMenuOpen;
@@ -120,9 +136,9 @@ final class ChatComposer {
     }
     boolean charTyped(char c, int modifiers) { return inputFocused && box != null && box.charTyped(c, modifiers); }
     private void send() {
-        if (box == null || !ChatLayout.hasText(box.getValue())) return;
+        if (box == null || !ChatLayout.hasText(box.getValue()) || !sendGuard.getAsBoolean()) return;
         onSend.accept(box.getValue());
-        box.setValue("");
+        if (clearAfterSend.getAsBoolean()) box.setValue("");
     }
 
     void render(GuiGraphics g, Font font, int x, int y, int w,
@@ -158,8 +174,8 @@ final class ChatComposer {
         inputBounds = new ChatLayout.Rect(barX, y, boxW, INPUT_H);
 
         if (box == null) {
-            box = new EditBox(font, 0, 0, textW, font.lineHeight,
-                    Component.translatable("mcphone.app.chat"));
+            bindInput(new EditBox(font, 0, 0, textW, font.lineHeight,
+                    Component.translatable("mcphone.app.chat")));
             box.setMaxLength(TextBody.MAX_LENGTH);
             box.setBordered(false);
             box.setFocused(inputFocused);

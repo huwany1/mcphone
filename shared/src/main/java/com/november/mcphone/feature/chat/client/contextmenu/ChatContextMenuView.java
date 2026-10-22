@@ -9,7 +9,7 @@ import java.util.List;
 
 /** 聊天首页、消息和输入框共用的菜单视图；只负责显示与命中，不持有业务数据或网络。 */
 public final class ChatContextMenuView {
-    public enum Icon { COPY, DELETE, PASTE, CREATE_GROUP, ADD_CONTACT, FAVORITE }
+    public enum Icon { COPY, DELETE, PASTE, CREATE_GROUP, ADD_CONTACT, FAVORITE, REPLY }
     public record Entry(String labelKey, Icon icon, boolean enabled) {}
     @FunctionalInterface public interface PanelPainter { void paint(GuiGraphics g, int x, int y, int width, int height); }
     private static final float SCALE = .75f;
@@ -47,7 +47,7 @@ public final class ChatContextMenuView {
             int color = !entry.enabled() ? FontPalette.subtle()
                     : entry.icon() == Icon.DELETE ? FontPalette.danger() : FontPalette.body();
             float centerY = rowY + layout.rowHeight() / 2f;
-            ChatContextMenuIcon.draw(g,entry.icon(),layout.iconX(),centerY,color);
+            if (entry.icon() != null) ChatContextMenuIcon.draw(g,entry.icon(),layout.iconX(),centerY,color);
             int available = bounds.x()+bounds.width()-ChatContextMenuLayout.PAD-layout.textX();
             String label = GuiUtil.truncate(font,Component.translatable(entry.labelKey()).getString(),
                     Math.max(0,(int)(available/SCALE)));

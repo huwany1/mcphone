@@ -552,5 +552,10 @@
   "mcphone.chat.favorite.limit": "Favorites are full; remove an item first",
   "mcphone.chat.favorite.storage_error": "Cannot read or write favorites; restore a backup or check storage",
   "mcphone.chat.favorite.empty": "No favorites yet",
-  "mcphone.chat.message_action.favorite": "Favorite"
+  "mcphone.chat.message_action.favorite": "Favorite",
+  "mcphone.chat.message_action.reply": "Reply",
+  "mcphone.chat.reply.unavailable": "Original message unavailable. Your draft is kept; retry sending.",
+  "mcphone.chat.reply.image": "[Image]",
+  "mcphone.chat.reply.timeout": "Reply not confirmed. Draft kept; check delivery before retrying.",
+  "mcphone.chat.reply.server_unavailable": "Original message unavailable; reply was not sent."
 }

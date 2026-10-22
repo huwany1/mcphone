@@ -552,5 +552,10 @@
   "mcphone.chat.favorite.limit": "收藏已满，请先移除一些内容",
   "mcphone.chat.favorite.storage_error": "收藏文件无法读写，请检查日志或恢复备份",
   "mcphone.chat.favorite.empty": "暂无收藏",
-  "mcphone.chat.message_action.favorite": "收藏"
+  "mcphone.chat.message_action.favorite": "收藏",
+  "mcphone.chat.message_action.reply": "引用",
+  "mcphone.chat.reply.unavailable": "原消息已不可用，正文已保留，请重试发送",
+  "mcphone.chat.reply.image": "[图片]",
+  "mcphone.chat.reply.timeout": "引用发送未确认，草稿已保留；重试前请确认是否已送达",
+  "mcphone.chat.reply.server_unavailable": "原消息已不可用，引用回复未发送"
 }
