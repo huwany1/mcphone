@@ -9,6 +9,8 @@
 
 ### 修复
 
+- 收藏列表和详情标题统一只显示发送者名字，移除来源会话名字，避免私聊收藏出现双份名字；已有收藏可直接查看。
+
 - 修复本地音乐与原版声音线程共享全进程 OpenAL 上下文导致的自动停播，初始化及播放改用线程局部隔离。
 - 本地音乐在游戏卡顿耗尽缓冲后可恢复同一音轨；用户暂停、显式停止与真正播放结束仍保持原语义。
 
@@ -36,6 +38,8 @@
 - Opening the phone on a new stable release shows that version's notes once. Viewing progress is stored locally per account and world/server, and is recorded as soon as the popup appears. Prerelease notes are available manually.
 
 ### Fixed
+
+- Favorites now show only the sender's name in both the list and detail view, removing the conversation name that duplicated private-chat names. Existing favorites remain readable.
 
 - Isolated local music playback from the process-wide OpenAL context used by the vanilla sound thread, preventing unexpected playback stops.
 - Local music resumes the same track after a game stall exhausts its buffers, while preserving user pause, explicit stop and actual end-of-track behavior.

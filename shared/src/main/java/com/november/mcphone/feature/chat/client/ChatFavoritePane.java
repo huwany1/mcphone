@@ -41,7 +41,7 @@ final class ChatFavoritePane {
                 if (y+rowHeight<=bounds.y()) continue;if (y>=bounds.y()+bounds.height()) break;
                 var item=values.get(i);var row=new ChatLayout.Rect(bounds.x(),y,bounds.width(),25);next.add(new Hit(row,item));
                 ChatUi.glass(g,ChatGlass.Surface.CARD,row.x(),row.y(),row.width(),row.height(),row.contains(mx,my));
-                ChatUi.label(g,font,ChatUi.truncate(font,item.senderName()+" · "+item.sourceName(),row.width()-10,ChatLayout.META_SCALE),row.x()+4,y+7,ChatLayout.META_SCALE,FontPalette.subtle());
+                ChatUi.label(g,font,ChatUi.truncate(font,item.senderName(),row.width()-10,ChatLayout.META_SCALE),row.x()+4,y+7,ChatLayout.META_SCALE,FontPalette.subtle());
                 ChatUi.label(g,font,ChatUi.truncate(font,item.text().replace('\n',' '),row.width()-10,ChatLayout.TEXT_SCALE),row.x()+4,y+17,ChatLayout.TEXT_SCALE,FontPalette.body());
             }
         } finally { GuiUtil.disableScissor(g); }
@@ -52,7 +52,7 @@ final class ChatFavoritePane {
     }
     private void renderText(GuiGraphics g,Font font,int mx,int my) {
         int x=area.x(),y=area.y(),w=area.width();
-        ChatUi.label(g,font,ChatUi.truncate(font,selected.senderName()+" · "+selected.sourceName(),w-6,ChatLayout.META_SCALE),x+3,y+5,ChatLayout.META_SCALE,FontPalette.subtle());
+        ChatUi.label(g,font,ChatUi.truncate(font,selected.senderName(),w-6,ChatLayout.META_SCALE),x+3,y+5,ChatLayout.META_SCALE,FontPalette.subtle());
         var lines=font.split(Component.literal(selected.text()),ChatLayout.unscaledWidth(w-8,ChatLayout.TEXT_SCALE));
         int step=ChatUi.lineHeight(font,ChatLayout.TEXT_SCALE)+2,top=y+15,bottom=y+area.height()-28;
         textMaximum=Math.max(0,lines.size()*step-Math.max(0,bottom-top));textOffset=Math.max(0,Math.min(textOffset,textMaximum));
