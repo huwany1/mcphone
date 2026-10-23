@@ -557,5 +557,9 @@
   "mcphone.chat.reply.unavailable": "Original message unavailable. Your draft is kept; retry sending.",
   "mcphone.chat.reply.image": "[Image]",
   "mcphone.chat.reply.timeout": "Reply not confirmed. Draft kept; check delivery before retrying.",
-  "mcphone.chat.reply.server_unavailable": "Original message unavailable; reply was not sent."
+  "mcphone.chat.reply.server_unavailable": "Original message unavailable; reply was not sent.",
+  "mcphone.changelog.title": "Changelog",
+  "mcphone.changelog.close": "Close",
+  "mcphone.changelog.empty": "No release notes are available in this build.",
+  "mcphone.changelog.upcoming": "Upcoming"
 }
