@@ -557,5 +557,9 @@
   "mcphone.chat.reply.unavailable": "原消息已不可用，正文已保留，请重试发送",
   "mcphone.chat.reply.image": "[图片]",
   "mcphone.chat.reply.timeout": "引用发送未确认，草稿已保留；重试前请确认是否已送达",
-  "mcphone.chat.reply.server_unavailable": "原消息已不可用，引用回复未发送"
+  "mcphone.chat.reply.server_unavailable": "原消息已不可用，引用回复未发送",
+  "mcphone.changelog.title": "更新日志",
+  "mcphone.changelog.close": "关闭",
+  "mcphone.changelog.empty": "此构建暂无更新日志。",
+  "mcphone.changelog.upcoming": "待发布"
 }
