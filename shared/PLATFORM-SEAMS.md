@@ -267,7 +267,7 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.SystemFiles`
 - `platform.client.VanillaAudio`
 
-#### 平台内部的（21）
+#### 平台内部的（20）
 
 只在这个平台自己的代码里用到。新平台不必提供同名类型。
 
@@ -289,7 +289,6 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.ClientTicks`　—— 加载器导入
 - `platform.client.PhoneBookIcons`
 - `platform.client.PhoneKeyInput`
-- `platform.client.PhoneSoundDevice`
 - `platform.client.PhoneToastBase`
 - `platform.client.PhoneWeather`
 
@@ -393,7 +392,7 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.SystemFiles`
 - `platform.client.VanillaAudio`
 
-#### 平台内部的（43）
+#### 平台内部的（42）
 
 只在这个平台自己的代码里用到。新平台不必提供同名类型。
 
@@ -437,7 +436,6 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.ClientTicks`　—— 加载器导入
 - `platform.client.PhoneBookIcons`
 - `platform.client.PhoneKeyInput`
-- `platform.client.PhoneSoundDevice`
 - `platform.client.PhoneToastBase`
 - `platform.client.PhoneWeather`
 
@@ -491,7 +489,7 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.SystemFiles`
 - `platform.client.VanillaAudio`
 
-#### 平台内部的（37）
+#### 平台内部的（36）
 
 只在这个平台自己的代码里用到。新平台不必提供同名类型。
 
@@ -529,7 +527,6 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.ClientTicks`　—— 加载器导入
 - `platform.client.PhoneBookIcons`
 - `platform.client.PhoneKeyInput`
-- `platform.client.PhoneSoundDevice`
 - `platform.client.PhoneToastBase`
 - `platform.client.PhoneWeather`
 
@@ -585,7 +582,7 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.SystemFiles`
 - `platform.client.VanillaAudio`
 
-#### 平台内部的（33）
+#### 平台内部的（32）
 
 只在这个平台自己的代码里用到。新平台不必提供同名类型。
 
@@ -610,7 +607,6 @@ Minecraft 1.20.1，在其之前，那一侧只能使用能力。`getCapability(.
 - `platform.client.ClientTicks`　—— 加载器导入
 - `platform.client.PhoneBookIcons`
 - `platform.client.PhoneKeyInput`
-- `platform.client.PhoneSoundDevice`
 - `platform.client.PhoneToastBase`
 - `platform.client.PhoneWeather`
 - `platform.client.mixin.CameraBlurMixin`
