@@ -11,6 +11,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import com.november.mcphone.feature.chat.client.messageaction.ChatMessageActions;
 import com.november.mcphone.feature.chat.TextBody;
+import com.november.mcphone.feature.chat.ImageBody;
+import com.november.mcphone.feature.chat.client.favorite.*;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
@@ -292,16 +294,37 @@ public final class ChatConversation {
     private void favorite(UUID target, UUID message, String fullText) {
         if (channel == null || !channel.target().equals(target)) return;
         var source = channel.messages().stream().filter(m -> m.id().equals(message)).findFirst().orElse(null);
-        if (source == null || !(source.body() instanceof TextBody)) return;
-        String key;
+        if (source == null) return;
         try {
-            var result = com.november.mcphone.feature.chat.client.favorite.ChatFavorites.current().add(
-                new com.november.mcphone.feature.chat.client.favorite.FavoriteText(message,target,channel.group(),source.sender(),
-                    messageSenderName(source),channel.title(),fullText,source.time(),System.currentTimeMillis()));
-            key = "mcphone.chat.favorite." + result.name().toLowerCase(java.util.Locale.ROOT);
-        } catch (RuntimeException error) { key = "mcphone.chat.favorite.storage_error"; }
+            FavoriteStore store=ChatFavorites.current();
+            if(store==null) { favoriteNotice("loading");return; }
+            FavoriteEntry entry;byte[] data;
+            if(source.body() instanceof TextBody text) {
+                data=text.text().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                entry=new FavoriteEntry(message,target,channel.group(),source.sender(),messageSenderName(source),
+                        source.time(),System.currentTimeMillis(),FavoriteEntry.Kind.TEXT,data.length,0,0,1,0);
+            } else if(source.body() instanceof ImageBody image) {
+                if(ChatImageCache.status(image.image())!=ChatImageCache.Status.READY || ChatImageCache.bytes(image.image())==null) {
+                    favoriteNotice("image_unavailable");return;
+                }
+                data=ChatImageCache.bytes(image.image()).clone();
+                entry=new FavoriteEntry(message,target,channel.group(),source.sender(),messageSenderName(source),
+                        source.time(),System.currentTimeMillis(),FavoriteEntry.Kind.IMAGE,data.length,
+                        image.width(),image.height(),image.frames(),image.frameMs());
+            } else return;
+            Object connection=Minecraft.getInstance().getConnection();
+            var account=selfId();
+            favoriteNotice("saving");
+            store.submit(net.minecraft.Util.backgroundExecutor(),()->store.add(entry,data)).whenComplete((result,error)->
+                Minecraft.getInstance().execute(()->{
+                    if(connection!=Minecraft.getInstance().getConnection() || !java.util.Objects.equals(account,selfId())) return;
+                    favoriteNotice(error==null?result.name().toLowerCase(java.util.Locale.ROOT):"storage_error");
+                }));
+        } catch (RuntimeException error) { favoriteNotice("storage_error"); }
+    }
+    private static void favoriteNotice(String result) {
         var player = Minecraft.getInstance().player;
-        if (player != null) com.november.mcphone.platform.PlayerAccess.message(player,Component.translatable(key),true);
+        if (player != null) com.november.mcphone.platform.PlayerAccess.message(player,Component.translatable("mcphone.chat.favorite."+result),true);
     }
 
     private String messageSenderName(ChatMessage message) {

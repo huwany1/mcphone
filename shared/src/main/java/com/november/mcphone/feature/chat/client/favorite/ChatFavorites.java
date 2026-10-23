@@ -12,7 +12,10 @@ import java.util.UUID;
 public final class ChatFavorites {
     private ChatFavorites() {}
     private static Path active;
-    private static FavoriteStore store;
+    private static java.util.concurrent.CompletableFuture<FavoriteStore> opening;
+    // 同一路径只有一个写入者；快速切服返回时仍复用正在保存的实例。
+    private static final java.util.Map<Path,java.util.concurrent.CompletableFuture<FavoriteStore>> STORES=
+            new java.util.LinkedHashMap<>(8,0.75f,true);
     public static Path path(Path directory,UUID account,String server) {
         try {
             String key=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(server.getBytes(StandardCharsets.UTF_8)));
@@ -27,8 +30,17 @@ public final class ChatFavorites {
                 :remote!=null?"remote:"+remote.ip.toLowerCase(java.util.Locale.ROOT):null;
         if (scope==null) throw new IllegalStateException("无法识别当前服务器");
         Path file=path(mc.gameDirectory.toPath(),mc.player.getUUID(),scope);
-        if (!file.equals(active)) { store=new FavoriteStore(file);active=file; }
-        return store;
+        if (!file.equals(active)) {
+            active=file;
+            opening=STORES.computeIfAbsent(file,p->java.util.concurrent.CompletableFuture.supplyAsync(
+                    ()->new FavoriteStore(p),net.minecraft.Util.backgroundExecutor()));
+            var iterator=STORES.entrySet().iterator();
+            while(STORES.size()>8 && iterator.hasNext()) {
+                var old=iterator.next();
+                if(!old.getKey().equals(active) && old.getValue().isDone() && !old.getValue().join().busy()) iterator.remove();
+            }
+        }
+        return opening.isDone()?opening.join():null;
     }
-    public static void clear() { active=null;store=null; }
+    public static void clear() { active=null;opening=null; }
 }

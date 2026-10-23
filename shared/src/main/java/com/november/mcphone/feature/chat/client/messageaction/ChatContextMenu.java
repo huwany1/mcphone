@@ -18,11 +18,11 @@ final class ChatContextMenu {
     }
     void open(ChatMessageTarget target,double x,double y,boolean favorite,boolean reply) {
         this.target=target;
-        items=target.copyable()?(favorite?List.of(ChatMessageAction.COPY,ChatMessageAction.FAVORITE,ChatMessageAction.DELETE):List.of(ChatMessageAction.COPY,ChatMessageAction.DELETE)):List.of(ChatMessageAction.DELETE);
-        if (reply) {
-            var expanded = new java.util.ArrayList<>(items);
-            expanded.add(expanded.size()-1,ChatMessageAction.REPLY); items=List.copyOf(expanded);
-        }
+        var expanded=new java.util.ArrayList<ChatMessageAction>();
+        if(target.copyable()) expanded.add(ChatMessageAction.COPY);
+        if(favorite) expanded.add(ChatMessageAction.FAVORITE);
+        if(reply) expanded.add(ChatMessageAction.REPLY);
+        expanded.add(ChatMessageAction.DELETE);items=List.copyOf(expanded);
         view.open(x,y);
     }
     boolean dismiss() { boolean wasOpen=view.dismiss(); target=null; items=List.of(); return wasOpen; }

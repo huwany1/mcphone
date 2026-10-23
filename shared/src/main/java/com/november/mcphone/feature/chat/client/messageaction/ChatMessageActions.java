@@ -76,7 +76,7 @@ public final class ChatMessageActions {
     void execute(ChatMessageTarget target, ChatMessageAction action, long now) {
         if (action == ChatMessageAction.REPLY && reply != null) reply.accept(target.peer(),target.messageId());
         if (action == ChatMessageAction.COPY && target.copyable()) copy.accept(target.copiedText());
-        if (action == ChatMessageAction.FAVORITE && target.copyable() && favorite != null) favorite.save(target.peer(),target.messageId(),target.fullText());
+        if (action == ChatMessageAction.FAVORITE && favorite != null) favorite.save(target.peer(),target.messageId(),target.fullText());
         if (action == ChatMessageAction.DELETE && pending == null) {
             UUID request = UUID.randomUUID();
             pending = new Pending(target.peer(), target.messageId(), request, now + 6000);

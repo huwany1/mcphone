@@ -8,10 +8,12 @@ public final class ChatFavoriteActionsTest {
   var actions=new ChatMessageActions((g,x,y,w,h)->{},copied::add,(a,b,c)->{},r->{},n->{},(a,b,t)->saved.add(t));
   var target=new ChatMessageTarget(p,m,"完整正文\n第二行","正文");actions.execute(target,ChatMessageAction.FAVORITE,100);
   check(saved.equals(List.of(target.fullText())),"收藏完整正文，不截取当前选区");actions.execute(target,ChatMessageAction.COPY,100);check(copied.equals(List.of("正文")),"复制仍尊重选区");
-  actions.execute(new ChatMessageTarget(p,m,null,""),ChatMessageAction.FAVORITE,100);check(saved.size()==1,"图片不收藏文字");
+  actions.execute(new ChatMessageTarget(p,m,null,""),ChatMessageAction.FAVORITE,100);
+  check(saved.size()==2&&saved.get(1)==null,"图片触发收藏回调，由消息 ID 查找图片，不冒充文字");
   var menu=new ChatContextMenu();menu.open(target,10,10,true);var entries=menu.entries(false);
   check(entries.size()==3&&entries.get(1).labelKey().equals("mcphone.chat.message_action.favorite"),"文字菜单复制收藏删除");
-  menu.open(new ChatMessageTarget(p,m,null,""),10,10,true);check(menu.entries(false).size()==1,"图片只保留删除");
+  menu.open(new ChatMessageTarget(p,m,null,""),10,10,true);
+  check(menu.entries(false).size()==2&&menu.entries(false).get(0).labelKey().equals("mcphone.chat.message_action.favorite"),"图片菜单提供收藏与删除");
   System.out.println("全部通过："+checks+" 条断言");
  }
 }
