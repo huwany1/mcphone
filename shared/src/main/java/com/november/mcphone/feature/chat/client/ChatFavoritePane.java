@@ -22,7 +22,7 @@ final class ChatFavoritePane {
     private final Supplier<FavoriteStore> source;
     private final Consumer<String> copy;
     private final Executor io,ui;
-    private final FavoriteMedia media=new FavoriteMedia();
+    private final FavoriteMedia media;
     private List<Hit> hits=List.of();
     private FavoriteEntry selected;
     private FavoriteStore store;
@@ -35,7 +35,7 @@ final class ChatFavoritePane {
         this(source,copy,net.minecraft.Util.backgroundExecutor(),task->Minecraft.getInstance().execute(task));
     }
     ChatFavoritePane(Supplier<FavoriteStore> source,Consumer<String> copy,Executor io,Executor ui) {
-        this.source=source;this.copy=copy;this.io=io;this.ui=ui;
+        this.source=source;this.copy=copy;this.io=io;this.ui=ui;this.media=new FavoriteMedia(io,ui);
     }
     void close() {
         media.clear();store=null;generation++;removing=saving=false;
@@ -127,7 +127,8 @@ final class ChatFavoritePane {
             for(var hit:hits) if(hit.bounds().contains(mx,my)) { selected=hit.entry();selectedText=null;textOffset=textMaximum=0;hits=List.of();return true; }
         } else if(copyButton!=null && copyButton.contains(mx,my)) {
             if(selected.kind()==FavoriteEntry.Kind.TEXT) {
-                if(selectedText!=null) copy.accept(selectedText);else status="mcphone.chat.favorite.loading";
+                // 正文自身显示读取/损坏状态，不把瞬时加载提示保留为操作结果。
+                if(selectedText!=null) copy.accept(selectedText);
             } else saveImage();
         } else if(removeButton!=null && removeButton.contains(mx,my) && !removing) {
             FavoriteStore captured=store;
@@ -149,9 +150,7 @@ final class ChatFavoritePane {
     private void saveImage() {
         if(saving || store==null) return;
         var loaded=media.get(store,selected);
-        if(loaded==null || loaded.texture==null) {
-            status="mcphone.chat.favorite."+(loaded!=null && loaded.failed?"content_missing":"loading");return;
-        }
+        if(loaded==null || loaded.texture==null) return;
         FavoriteStore owner=store;FavoriteEntry entry=selected;int gen=generation;
         saving=true;status="mcphone.chat.favorite.saving";
         java.util.concurrent.CompletableFuture.supplyAsync(()->{

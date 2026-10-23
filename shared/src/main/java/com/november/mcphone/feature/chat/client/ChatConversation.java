@@ -291,7 +291,7 @@ public final class ChatConversation {
         channel.read();
     }
 
-    private void favorite(UUID target, UUID message, String fullText) {
+    private void favorite(UUID target, UUID message) {
         if (channel == null || !channel.target().equals(target)) return;
         var source = channel.messages().stream().filter(m -> m.id().equals(message)).findFirst().orElse(null);
         if (source == null) return;

@@ -41,9 +41,11 @@ config/mcphone/chat/favorites/<账号 UUID>/
 - 每个环境有界串行提交，最多排队 16 个操作；后台任务绑定发起时的存储对象，切服不会写进另一环境。
 - 同路径复用写入者，忙碌环境不逐出；闲置环境缓存保留至多 8 份，避免快速切服产生相互覆盖的写入者。
 - 内容缓存最多并行加载 4 项，元数据最多 64 项，贴图预算 24 MiB；退出收藏或切换来源时释放。
+- 内容缓存使用页面注入的后台与渲染执行器；加载状态直接由内容呈现，避免按钮点击留下过期的“正在读取”提示。
 
 ## 验证
 
-各平台工程：`assertTestFavoriteStoreTest assertTestFavoriteImageStoreTest assertTestChatFavoritePaneTest assertTestChatFavoriteActionsTest assertTestChatMessageActionsTest`。
+各平台工程：`assertTestFavoriteStoreTest assertTestFavoriteImageStoreTest assertTestFavoriteMediaTest assertTestChatFavoritePaneTest assertTestChatFavoriteActionsTest assertTestChatMessageActionsTest`。
 新增真文件测试覆盖迁移、完整动图、重启读图、重复身份、失败回滚、缺失内容、容量、队列顺序与后台写入不阻塞排队。
+缓存专项以可控队列验证加载限额、重复请求、条目移除／同键重建、关闭／换环境后的迟到结果隔离和坏文件；不创建 GL 贴图，实际显存上传和释放仍需游戏内验证。
 游戏内还需检查图片右键菜单、混合列表滚动、手机／平板预览、动图、相册导出、取消收藏和重进服务器后的读取。

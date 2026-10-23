@@ -30,6 +30,9 @@ public final class ChatFavoritePaneTest {
             check(!pane.click(0,0,0)&&field(pane,"selected")==null,"列表外不选择");
             check(!pane.click(20,30,1)&&field(pane,"selected")==null,"右键不打开收藏正文");
             check(pane.click(20,30,0)&&field(pane,"selected").equals(entry),"实际行点击打开对应不可变快照");
+            buttons(pane);pane.click(20,64,0);
+            check(copied.isEmpty(),"正文尚未加载时不复制占位提示");
+            check(field(pane,"status").equals(""),"读取状态由正文加载状态决定，不留下永久的读取中提示");
             field(pane,"selectedText",store.text(entry));
             buttons(pane);pane.click(20,64,0);check(copied.equals(List.of(original.text())),"实际复制按钮保留完整正文与换行");
             check(store.snapshot().size()==1,"复制不改变收藏");pane.click(99,64,0);

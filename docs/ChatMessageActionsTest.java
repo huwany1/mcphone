@@ -30,7 +30,7 @@ public final class ChatMessageActionsTest {
                 "图片可收藏及回复，但不显示复制文字");
         var favorites=new ArrayList<UUID>();
         var imageActions=new ChatMessageActions((g,x,y,w,h)->{},ignored->{throw new AssertionError("图片不可复制文字");},
-                (p,m,r)->{},ignored->{},ignored->{},(p,m,text)->favorites.add(m));
+                (p,m,r)->{},ignored->{},ignored->{},(p,m)->favorites.add(m));
         imageActions.execute(image,ChatMessageAction.FAVORITE,100);
         check(favorites.equals(List.of(id)),"收藏图片按消息 ID 回调，不受文字复制条件限制");
         var copied = new ArrayList<String>(); var sent = new ArrayList<Sent>();
