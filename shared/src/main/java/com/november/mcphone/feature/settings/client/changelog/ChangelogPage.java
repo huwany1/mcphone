@@ -1,6 +1,7 @@
 package com.november.mcphone.feature.settings.client.changelog;
 
 import com.november.mcphone.core.client.FontPalette;
+import com.november.mcphone.core.client.FontPreset;
 import com.november.mcphone.core.client.GuiUtil;
 import com.november.mcphone.core.client.PhoneTheme;
 import net.minecraft.client.Minecraft;
@@ -17,6 +18,11 @@ public final class ChangelogPage {
     private int scroll, maxScroll;
     private int left, top, width, bottom, textTop, textBottom;
     private boolean modal;
+    private List<Row> rows = List.of();
+    private Font layoutFont;
+    private int layoutWidth;
+    private String layoutLanguage;
+    private FontPreset layoutPalette;
     private final List<LinkHit> links = new ArrayList<>();
     private record LinkHit(int x, int y, int width, int height, String url) {
         boolean contains(double mx, double my) { return mx >= x && mx < x + width && my >= y && my < y + height; }
@@ -26,6 +32,8 @@ public final class ChangelogPage {
     public void open(List<Changelog.Release> values) {
         releases = values;
         scroll = maxScroll = 0;
+        layoutFont = null;
+        rows = List.of();
         links.clear();
     }
     public void render(GuiGraphics g, int x, int y, int w, int h, int statusH, int navH,
@@ -45,32 +53,16 @@ public final class ChangelogPage {
         textTop = top + font.lineHeight + 9;
         textBottom = bottom - (popup ? font.lineHeight + 12 : 3);
         int textWidth = width - 12;
-        var rows = new ArrayList<Row>();
-        String language = Minecraft.getInstance().options.languageCode;
-        if (releases.isEmpty()) add(rows, font, Component.translatable("mcphone.changelog.empty").getString(), textWidth, FontPalette.subtle(), null);
-        for (Changelog.Release release : releases) {
-            String version = release.version().equals("next")
-                    ? Component.translatable("mcphone.changelog.upcoming").getString() : "v" + release.version();
-            add(rows, font, version, textWidth, FontPalette.title(), null);
-            if (!release.date().isBlank()) add(rows, font, release.date(), textWidth, FontPalette.subtle(), null);
-            for (Changelog.Section section : release.sections(language)) {
-                add(rows, font, section.title(), textWidth, FontPalette.notice(), null);
-                for (String source : section.entries()) {
-                    var entry = ChangelogText.parse(source);
-                    add(rows, font, "• " + entry.text(), textWidth, FontPalette.body(), null);
-                    for (var link : entry.links()) add(rows, font, "↗ " + link.label(), textWidth, FontPalette.link(), link.url());
-                    rows.add(new Row(FormattedCharSequence.EMPTY, 0, null));
-                }
-            }
-            rows.add(new Row(FormattedCharSequence.EMPTY, 0, null));
-        }
+        layout(font, textWidth, Minecraft.getInstance().options.languageCode);
         int lineH = font.lineHeight + 2;
         maxScroll = Math.max(0, rows.size() * lineH - (textBottom - textTop));
         scroll = Math.max(0, Math.min(scroll, maxScroll));
         links.clear();
         GuiUtil.enableScissor(g, left + 3, textTop, left + width - 3, textBottom);
         try {
-            for (int i = 0; i < rows.size(); i++) {
+            int first = scroll / lineH;
+            int end = Math.min(rows.size(), (scroll + textBottom - textTop + lineH - 1) / lineH);
+            for (int i = first; i < end; i++) {
                 Row row = rows.get(i);
                 int rowY = textTop + i * lineH - scroll;
                 if (rowY + lineH <= textTop || rowY >= textBottom) continue;
@@ -92,6 +84,35 @@ public final class ChangelogPage {
             g.drawString(font, close, left + (width - font.width(close)) / 2, textBottom + 5, FontPalette.body(), false);
         }
     }
+    /** 正文只在打开、宽度、语言、字体或配色变化时重排，滚动不重新解析历史。 */
+    private void layout(Font font, int textWidth, String language) {
+        if (layoutFont == font && layoutWidth == textWidth && language.equals(layoutLanguage)
+                && layoutPalette == FontPalette.current()) return;
+        var next = new ArrayList<Row>();
+        if (releases.isEmpty()) add(next, font, Component.translatable("mcphone.changelog.empty").getString(), textWidth, FontPalette.subtle(), null);
+        for (Changelog.Release release : releases) {
+            String version = release.version().equals("next")
+                    ? Component.translatable("mcphone.changelog.upcoming").getString() : "v" + release.version();
+            add(next, font, version, textWidth, FontPalette.title(), null);
+            if (!release.date().isBlank()) add(next, font, release.date(), textWidth, FontPalette.subtle(), null);
+            for (Changelog.Section section : release.sections(language)) {
+                add(next, font, section.title(), textWidth, FontPalette.notice(), null);
+                for (String source : section.entries()) {
+                    var entry = ChangelogText.parse(source);
+                    add(next, font, "• " + entry.text(), textWidth, FontPalette.body(), null);
+                    for (var link : entry.links()) add(next, font, "↗ " + link.label(), textWidth, FontPalette.link(), link.url());
+                    next.add(new Row(FormattedCharSequence.EMPTY, 0, null));
+                }
+            }
+            next.add(new Row(FormattedCharSequence.EMPTY, 0, null));
+        }
+        rows = List.copyOf(next);
+        layoutFont = font;
+        layoutWidth = textWidth;
+        layoutLanguage = language;
+        layoutPalette = FontPalette.current();
+        links.clear();
+    }
     private static void add(List<Row> rows, Font font, String text, int width, int color, String url) {
         for (var line : font.split(Component.literal(text), width)) rows.add(new Row(line, color, url));
     }
@@ -106,7 +127,9 @@ public final class ChangelogPage {
         return false;
     }
     public void scroll(double mx, double my, double amount) {
-        if (mx >= left && mx < left + width && my >= textTop && my < textBottom)
+        if (mx >= left && mx < left + width && my >= textTop && my < textBottom) {
             scroll = Math.max(0, Math.min(maxScroll, scroll - (int) (amount * 24)));
+            links.clear(); // 下一帧重建命中区域，不能点击滚动前残留的旧链接。
+        }
     }
 }

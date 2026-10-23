@@ -557,7 +557,7 @@ public final class PhoneScreen extends PhoneScreenBase {
     }
 
     private boolean addonInteractive() {
-        return minecraft != null && minecraft.screen == this && minecraft.isWindowActive();
+        return !changelogPopup && minecraft != null && minecraft.screen == this && minecraft.isWindowActive();
     }
 
     private void openAddonPage(IPhonePage page) {
@@ -829,6 +829,7 @@ public final class PhoneScreen extends PhoneScreenBase {
             sessionResumed = true;
             resumeSession();
         }
+        checkChangelog();
     }
 
     /** 续开上次关机时停的那一页，白名单与有效性由 {@link PhoneSession} 把关 */
@@ -890,9 +891,9 @@ public final class PhoneScreen extends PhoneScreenBase {
     }
 
     private void checkChangelog() {
-        // 被动 HUD 绘制不算打开手机；只在玩家真正操作且开机动画结束后检查一次。
-        getAnimationScale();
-        if (!changelogChecked && animationDone && Minecraft.getInstance().screen == this) {
+        // 在接收输入前决定是否显示，避免动画期间已按下的拖动被弹窗截断。
+        // 被动 HUD 的 init/render 不算玩家打开手机。
+        if (!changelogChecked && Minecraft.getInstance().screen == this) {
             changelogChecked = true;
             changelogRecord = ChangelogClient.pendingRecord();
             if (changelogRecord != null) {
@@ -1629,10 +1630,6 @@ public final class PhoneScreen extends PhoneScreenBase {
             changelogDialog.scroll(unscaledX(rawX), unscaledY(rawY), scrollY);
             return true;
         }
-        if (mode == Mode.CHANGELOG) {
-            changelogPage.scroll(unscaledX(rawX), unscaledY(rawY), scrollY);
-            return true;
-        }
         // 全屏读书：翻页，与坐标无关
         if (fullscreenReading() && txtReader.mouseScrolled(scrollY, font)) return true;
 
@@ -1665,6 +1662,10 @@ public final class PhoneScreen extends PhoneScreenBase {
             return true;
         }
 
+        if (mode == Mode.CHANGELOG) {
+            changelogPage.scroll(mx, my, scrollY);
+            return true;
+        }
         if (mode == Mode.MAIN && homeGrid.mouseScrolled(scrollY)) return true;
         if (mode == Mode.GALLERY && gallery.mouseScrolled(scrollY)) return true;
         if (mode == Mode.CHAT && chatList.mouseScrolled(scrollY)) return true;
