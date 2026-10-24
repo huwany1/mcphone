@@ -13,11 +13,9 @@ public final class ChatContextMenuView {
     public record Entry(String labelKey, Icon icon, boolean enabled) {}
     @FunctionalInterface public interface PanelPainter { void paint(GuiGraphics g, int x, int y, int width, int height); }
     private static final float SCALE = .75f;
-    // 悬停行使用固定浅底，文字和图标一起切为深色，避免随主题变成浅底白字。
-    private static final int HOVER_FILL = 0xFFF4F4FA;
-    private static final int HOVER_BORDER = 0xFF706A7B;
-    private static final int HOVER_TEXT = 0xFF242330;
-    private static final int HOVER_DANGER = 0xFFA32B2B;
+    // 深色菜单叠约 18% 灰白；浅色菜单轻微压暗，保留原面板的透明层次。
+    private static final int HOVER_FILL = 0x2EFFFFFF;
+    private static final int HOVER_FILL_ON_LIGHT = 0x18000000;
     private boolean open;
     private double anchorX, anchorY;
     private ChatContextMenuLayout.Layout layout;
@@ -51,12 +49,16 @@ public final class ChatContextMenuView {
             int rowY = bounds.y() + ChatContextMenuLayout.PAD + i * layout.rowHeight();
             boolean hovered = hoveredIndex == i;
             if (hovered) {
-                g.fill(bounds.x()+2,rowY,bounds.x()+bounds.width()-2,rowY+layout.rowHeight(),HOVER_FILL);
-                g.renderOutline(bounds.x()+2,rowY,bounds.width()-4,layout.rowHeight(),HOVER_BORDER);
+                int left = bounds.x()+2, right = bounds.x()+bounds.width()-2, bottom = rowY+layout.rowHeight();
+                int fill = FontPalette.current().darkText() ? HOVER_FILL_ON_LIGHT : HOVER_FILL;
+                // 一像素圆角，三块不重叠，半透明底色不会在接缝处叠深。
+                g.fill(left,rowY+1,right,bottom-1,fill);
+                g.fill(left+1,rowY,right-1,rowY+1,fill);
+                g.fill(left+1,bottom-1,right-1,bottom,fill);
             }
             int color = !entry.enabled() ? FontPalette.subtle()
-                    : hovered ? entry.icon() == Icon.DELETE ? HOVER_DANGER : HOVER_TEXT
-                    : entry.icon() == Icon.DELETE ? FontPalette.danger() : FontPalette.body();
+                    : entry.icon() == Icon.DELETE ? FontPalette.danger()
+                    : hovered ? FontPalette.title() : FontPalette.body();
             float centerY = rowY + layout.rowHeight() / 2f;
             if (entry.icon() != null) ChatContextMenuIcon.draw(g,entry.icon(),layout.iconX(),centerY,color);
             int available = bounds.x()+bounds.width()-ChatContextMenuLayout.PAD-layout.textX();
