@@ -4,6 +4,8 @@
 
 ### 新增
 
+- 美西螈私聊和群聊的附件菜单支持发送位置，点击后把当前 X、Y、Z 方块坐标作为普通文字消息发送；服务器关闭图片或图片上传队列已满时仍可使用。
+- 美西螈私聊右上角的三个点可直接查看对方的个人资料；返回原聊天时保留未发送文字、引用及滚动位置，查看资料期间仍处理发送确认。群聊继续打开群详情。
 - 美西螈私聊和群聊支持收藏已加载的图片，收藏列表可预览图片，详情支持动图播放、保存到相册及取消收藏；收藏后可独立查看，不依赖原消息和服务器图片保留时间。
 - 收藏采用统一索引及 text、image 分类目录，预留 audio、file；旧文字收藏自动迁移，原 JSON 保留为备份，本机仍按账号和存档／服务器隔离。
 
@@ -19,6 +21,7 @@
 
 ### 优化
 
+- 右键菜单悬停行使用柔和的半透明灰底，复用面板及按钮的细分圆角，避免手机放大后出现明显切角台阶；文字和图标同步强调并跟随字体主题，删除项保留红色，禁用项保持不可选。
 - 美西螈私聊和群聊支持引用文字、图片摘要；输入栏提供可取消的引用预览，回复气泡显示作者及原文摘要。
 - 引用只提交消息 ID，服务端按会话与可见性生成单层快照；引用回复不嵌套，图片引用不读取额外像素。
 - 引用发送等待服务端回声，超时或本地目标失效保留正文；旧聊天记录可继续读取。
@@ -37,6 +40,8 @@
 
 ### Added
 
+- The attachment menu in Axolotl private and group chats can send the player's current X, Y and Z block coordinates as a plain text message. Location remains available when images are disabled or the image upload queue is full.
+- The top-right menu in Axolotl private chats opens the other player's profile. Returning preserves the unsent draft, reply preview and scroll position, while send confirmations continue to be processed. Group chats still open group details.
 - Axolotl private and group chats can favorite loaded images. Favorites show image previews and support animated playback, gallery export and removal. Saved images remain available independently of the original message and server image retention.
 - Favorites use one index with separate text and image directories, reserving audio and file directories. Existing text favorites migrate automatically while the original JSON remains as a backup. Storage remains local and scoped per account and world/server.
 
@@ -52,6 +57,7 @@
 
 ### Improved
 
+- Context menus use a soft translucent neutral hover background with the same subdivided rounded corners as panels and buttons, avoiding coarse cut corners when the phone is enlarged. Text and icons gain emphasis using the current font theme. Delete remains red, and disabled entries remain unavailable.
 - Axolotl private and group chats support replies to text and image summaries, with a cancellable input preview and an author/original-text preview in the reply bubble.
 - Replies submit only a message ID. The server creates a single-level snapshot according to conversation visibility; replies do not nest or load extra image pixels.
 - Reply drafts are kept when the server echo times out or the local target becomes unavailable. Existing chat history remains readable.

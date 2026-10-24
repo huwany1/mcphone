@@ -29,8 +29,10 @@ public final class ChatProfile {
         open(current==null?null:current.getUUID(),current==null?"":current.getName().getString(),false);
     }
     public void openPlayer(UUID id) {
-        String fallback=id.toString().substring(0,8);
-        open(id,fallback,true);
+        openPlayer(id,"");
+    }
+    public void openPlayer(UUID id,String knownName) {
+        open(id,knownName.isBlank()?id.toString().substring(0,8):knownName,true);
     }
     private void open(UUID id,String name,boolean external) {
         close();player=id;this.external=external;page=external?Page.DETAILS:Page.HOME;detailsReturn=Page.HOME;
