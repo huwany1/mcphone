@@ -202,7 +202,7 @@ final class ChatComposer {
         sendHovered = hasText && ChatLayout.hit(mouseX, mouseY,
                 actionX, sendY, layout.actionWidth(), ChatLayout.SEND_HEIGHT);
         if (hasText) {
-            ChatUi.roundedButton(g, actionX, sendY, layout.actionWidth(), ChatLayout.SEND_HEIGHT,
+            ChatUi.roundedFill(g, actionX, sendY, layout.actionWidth(), ChatLayout.SEND_HEIGHT,
                     sendHovered ? 0xFF913966 : 0xFFB65085);
             ChatUi.buttonText(g, font, send, actionX + layout.actionWidth() / 2f,
                     sendY + ChatLayout.SEND_HEIGHT / 2f,

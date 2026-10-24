@@ -2,6 +2,7 @@ package com.november.mcphone.feature.chat.client.contextmenu;
 
 import com.november.mcphone.core.client.FontPalette;
 import com.november.mcphone.core.client.GuiUtil;
+import com.november.mcphone.feature.chat.client.ChatUi;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -49,12 +50,8 @@ public final class ChatContextMenuView {
             int rowY = bounds.y() + ChatContextMenuLayout.PAD + i * layout.rowHeight();
             boolean hovered = hoveredIndex == i;
             if (hovered) {
-                int left = bounds.x()+2, right = bounds.x()+bounds.width()-2, bottom = rowY+layout.rowHeight();
                 int fill = FontPalette.current().darkText() ? HOVER_FILL_ON_LIGHT : HOVER_FILL;
-                // 一像素圆角，三块不重叠，半透明底色不会在接缝处叠深。
-                g.fill(left,rowY+1,right,bottom-1,fill);
-                g.fill(left+1,rowY,right-1,rowY+1,fill);
-                g.fill(left+1,bottom-1,right-1,bottom,fill);
+                ChatUi.roundedFill(g,bounds.x()+2,rowY,bounds.width()-4,layout.rowHeight(),fill);
             }
             int color = !entry.enabled() ? FontPalette.subtle()
                     : entry.icon() == Icon.DELETE ? FontPalette.danger()

@@ -21,7 +21,7 @@
 
 ### 优化
 
-- 右键菜单悬停行使用柔和的半透明灰底与小圆角，文字和图标同步强调并跟随字体主题，删除项保留红色；禁用项保持不可选。
+- 右键菜单悬停行使用柔和的半透明灰底，复用面板及按钮的细分圆角，避免手机放大后出现明显切角台阶；文字和图标同步强调并跟随字体主题，删除项保留红色，禁用项保持不可选。
 - 美西螈私聊和群聊支持引用文字、图片摘要；输入栏提供可取消的引用预览，回复气泡显示作者及原文摘要。
 - 引用只提交消息 ID，服务端按会话与可见性生成单层快照；引用回复不嵌套，图片引用不读取额外像素。
 - 引用发送等待服务端回声，超时或本地目标失效保留正文；旧聊天记录可继续读取。
@@ -57,7 +57,7 @@
 
 ### Improved
 
-- Context menus use a soft translucent neutral hover background with small rounded corners. Text and icons gain emphasis using the current font theme. Delete remains red, and disabled entries remain unavailable.
+- Context menus use a soft translucent neutral hover background with the same subdivided rounded corners as panels and buttons, avoiding coarse cut corners when the phone is enlarged. Text and icons gain emphasis using the current font theme. Delete remains red, and disabled entries remain unavailable.
 - Axolotl private and group chats support replies to text and image summaries, with a cancellable input preview and an author/original-text preview in the reply bubble.
 - Replies submit only a message ID. The server creates a single-level snapshot according to conversation visibility; replies do not nest or load extra image pixels.
 - Reply drafts are kept when the server echo times out or the local target becomes unavailable. Existing chat history remains readable.
