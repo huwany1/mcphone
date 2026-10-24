@@ -4,6 +4,9 @@
 
 ### 新增
 
+- 美西螈私聊和群聊支持收藏已加载的图片，收藏列表可预览图片，详情支持动图播放、保存到相册及取消收藏；收藏后可独立查看，不依赖原消息和服务器图片保留时间。
+- 收藏采用统一索引及 text、image 分类目录，预留 audio、file；旧文字收藏自动迁移，原 JSON 保留为备份，本机仍按账号和存档／服务器隔离。
+
 - 设置中增加“更新日志”，支持滚动浏览分类内容、平台标注和链接；正文提供简体中文和英文，其他语言显示英文。
 - 正式版首次打开手机时展示当前版本日志，出现即记为已查看；本机按账号和存档／服务器分别记录，同版本不会重复提醒。测试版仅支持手动查看。
 
@@ -33,6 +36,9 @@
 ## English
 
 ### Added
+
+- Axolotl private and group chats can favorite loaded images. Favorites show image previews and support animated playback, gallery export and removal. Saved images remain available independently of the original message and server image retention.
+- Favorites use one index with separate text and image directories, reserving audio and file directories. Existing text favorites migrate automatically while the original JSON remains as a backup. Storage remains local and scoped per account and world/server.
 
 - Added Changelog to Settings, with scrollable categories, platform labels and links. Notes are available in Simplified Chinese and English; other languages use English.
 - Opening the phone on a new stable release shows that version's notes once. Viewing progress is stored locally per account and world/server, and is recorded as soon as the popup appears. Prerelease notes are available manually.

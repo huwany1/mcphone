@@ -20,7 +20,8 @@ public final class ChatMessageActions {
     private final DeleteSender delete;
     private final Consumer<UUID> cancel;
     private final Consumer<String> notice;
-    @FunctionalInterface public interface FavoriteSaver { void save(UUID peer, UUID message, String fullText); }
+    /** 收藏只传消息身份，正文类型及完整内容由会话解析。 */
+    @FunctionalInterface public interface FavoriteSaver { void save(UUID peer, UUID message); }
     private final FavoriteSaver favorite;
     private final java.util.function.BiConsumer<UUID,UUID> reply;
     private Pending pending;
@@ -76,7 +77,7 @@ public final class ChatMessageActions {
     void execute(ChatMessageTarget target, ChatMessageAction action, long now) {
         if (action == ChatMessageAction.REPLY && reply != null) reply.accept(target.peer(),target.messageId());
         if (action == ChatMessageAction.COPY && target.copyable()) copy.accept(target.copiedText());
-        if (action == ChatMessageAction.FAVORITE && target.copyable() && favorite != null) favorite.save(target.peer(),target.messageId(),target.fullText());
+        if (action == ChatMessageAction.FAVORITE && favorite != null) favorite.save(target.peer(),target.messageId());
         if (action == ChatMessageAction.DELETE && pending == null) {
             UUID request = UUID.randomUUID();
             pending = new Pending(target.peer(), target.messageId(), request, now + 6000);

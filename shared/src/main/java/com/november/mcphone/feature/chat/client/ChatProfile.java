@@ -47,7 +47,10 @@ public final class ChatProfile {
         if (external || page==Page.HOME) return false;
         change(page==Page.DETAILS?detailsReturn:page==Page.FAVORITES?favoritesReturn:Page.HOME);return true;
     }
-    private void change(Page next) { page=next;rows=List.of();card=back=null;navigation.clear();details.clearHits(); }
+    private void change(Page next) {
+        if(page==Page.FAVORITES && next!=Page.FAVORITES) favorites.close();
+        page=next;rows=List.of();card=back=null;navigation.clear();details.clearHits();
+    }
     public void render(GuiGraphics g,int left,int top,int sw,int sh,int statusH,int navH,int mx,int my,Font font,float tick) {
         if (player==null) return;
         details.poll(System.currentTimeMillis());
