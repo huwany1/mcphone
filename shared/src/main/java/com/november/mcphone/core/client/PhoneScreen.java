@@ -125,8 +125,12 @@ public final class PhoneScreen extends PhoneScreenBase {
     private final ChatProfile chatProfile=new ChatProfile();
     private Mode profileReturnMode=Mode.CHAT;
     private UUID profileTarget;
+    private String profileFallback="";
     private void openPlayerProfile(UUID id) {
-        profileTarget=id;profileReturnMode=mode;navigateTo(Mode.CHAT_PLAYER_PROFILE);
+        openPlayerProfile(id,"");
+    }
+    private void openPlayerProfile(UUID id,String knownName) {
+        profileTarget=id;profileFallback=knownName;profileReturnMode=mode;navigateTo(Mode.CHAT_PLAYER_PROFILE);
     }
     private final ChatContacts chatContacts = new ChatContacts();
     private final ChatGroupCreate chatGroupCreate = new ChatGroupCreate();
@@ -297,7 +301,7 @@ public final class PhoneScreen extends PhoneScreenBase {
 
         if (this.mode == Mode.CHAT_PROFILE || this.mode == Mode.CHAT_PLAYER_PROFILE) chatProfile.close();
         if (target == Mode.CHAT_PROFILE) chatProfile.open();
-        if (target == Mode.CHAT_PLAYER_PROFILE) chatProfile.openPlayer(profileTarget);
+        if (target == Mode.CHAT_PLAYER_PROFILE) chatProfile.openPlayer(profileTarget,profileFallback);
         if (this.mode == Mode.CHAT_CONTACTS) chatContacts.close();
         if (target == Mode.CHAT_CONTACTS) chatContacts.open();
         if (this.mode == Mode.CHAT_NEW_FRIENDS) chatNewFriends.close();
@@ -306,9 +310,18 @@ public final class PhoneScreen extends PhoneScreenBase {
         if (this.mode == Mode.CHAT_ADD_CONTACT) chatAddContact.close();
         if (target == Mode.CHAT_ADD_CONTACT) chatAddContact.open();
 
-        if (inConversation()) chatConversation.close();
-        if (target == Mode.CHAT_CONVERSATION) chatConversation.open(pendingConversationPeer);
-        if (target == Mode.CHAT_GROUP_CONVERSATION) chatConversation.openGroup(pendingConversationPeer);
+        boolean keepConversation=false;
+        if (mode == Mode.CHAT_CONVERSATION && target == Mode.CHAT_PLAYER_PROFILE)
+            keepConversation=chatConversation.suspendForProfile(profileTarget);
+        else if (mode == Mode.CHAT_PLAYER_PROFILE && profileReturnMode == Mode.CHAT_CONVERSATION
+                && target == Mode.CHAT_CONVERSATION)
+            keepConversation=chatConversation.resumeFromProfile(pendingConversationPeer);
+        if (!keepConversation) {
+            // 资料页也可能持有暂离的会话；真正离开时按资源归属清理，不只看当前页面。
+            if (chatConversation.peer()!=null) chatConversation.close();
+            if (target == Mode.CHAT_CONVERSATION) chatConversation.open(pendingConversationPeer);
+            if (target == Mode.CHAT_GROUP_CONVERSATION) chatConversation.openGroup(pendingConversationPeer);
+        }
         if (target == Mode.CHAT_CONVERSATION || target == Mode.CHAT_GROUP_CONVERSATION) pendingConversationIsGroup = target == Mode.CHAT_GROUP_CONVERSATION;
         if (mode == Mode.CHAT_GROUP_CREATE) chatGroupCreate.close();
         if (target == Mode.CHAT_GROUP_CREATE) chatGroupCreate.open();
@@ -605,6 +618,7 @@ public final class PhoneScreen extends PhoneScreenBase {
     /** Screen 由原版 tick；后台 HUD 由 PhoneHud tick，二者互斥。 */
     @Override public void tick() {
         super.tick();
+        if (chatConversation.profileSuspended()) chatConversation.tick();
         updateAddonContext();
         if (addonHost.page() != null) callPage(p -> { p.tick(); return true; });
     }
@@ -1478,7 +1492,11 @@ public final class PhoneScreen extends PhoneScreenBase {
                     navigateTo(chatReturnMode);
                     yield true;
                 }
-                if (chatConversation.consumeDetailsRequest()) { navigateTo(Mode.CHAT_GROUP_DETAILS); yield true; }
+                if (chatConversation.consumeDetailsRequest()) {
+                    if (chatConversation.isGroup()) navigateTo(Mode.CHAT_GROUP_DETAILS);
+                    else openPlayerProfile(chatConversation.peer(),chatConversation.title());
+                    yield true;
+                }
 
                 ChatAttachment attach = chatConversation.consumeAttachRequest();
                 if (attach != null) {
@@ -1862,7 +1880,7 @@ public final class PhoneScreen extends PhoneScreenBase {
         if (mode == Mode.GALLERY) gallery.close();
         if (mode == Mode.CHAT_PHOTO_PICKER) chatPhotoPicker.close();
         if (mode == Mode.CHAT_STICKER_PICKER) chatStickerPicker.close();
-        if (inConversation()) chatConversation.close();
+        if (chatConversation.peer()!=null) chatConversation.close();
         if (mode == Mode.CHAT) chatList.close();
         if (mode == Mode.CHAT_CONTACTS) chatContacts.close();
         if (mode == Mode.CHAT_NEW_FRIENDS) chatNewFriends.close();

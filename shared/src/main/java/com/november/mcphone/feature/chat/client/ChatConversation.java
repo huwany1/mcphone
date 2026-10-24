@@ -44,7 +44,7 @@ public final class ChatConversation {
     private UUID peer;
     private long lastRequestMs;
     private List<ChatMessage> markedFrom;
-    private boolean backHovered, pendingBack, moreHovered, pendingDetails;
+    private boolean backHovered, pendingBack, moreHovered, pendingDetails, profileSuspended;
 
     public void open(UUID peer) {
         open(ChatConversationChannel.direct(peer));
@@ -78,11 +78,29 @@ public final class ChatConversation {
         messages.reset();
         viewer.dismiss();
         composer.reset(focused);
-        backHovered = pendingBack = moreHovered = pendingDetails = false;
+        backHovered = pendingBack = moreHovered = pendingDetails = profileSuspended = false;
     }
 
     public UUID peer() { return peer; }
+    public String title() { return channel == null ? "" : channel.title(); }
     public boolean isGroup() { return channel != null && channel.group(); }
+    public boolean profileSuspended() { return profileSuspended; }
+    /** 私聊暂离到对方资料：保留同一输入框、引用、回声票据及消息滚动状态。 */
+    public boolean suspendForProfile(UUID target) {
+        if (channel == null || isGroup() || !isViewing(target)) return false;
+        profileSuspended = true;
+        actions.dismiss();
+        composer.dismissContextMenu(); composer.dismissAttachmentMenu(); composer.blur();
+        messages.clearSelection(); viewer.dismiss(); cancelReply = null;
+        backHovered = pendingBack = moreHovered = pendingDetails = false;
+        return true;
+    }
+    public boolean resumeFromProfile(UUID target) {
+        if (!profileSuspended || !isViewing(target)) return false;
+        profileSuspended = false;
+        composer.focus();
+        return true;
+    }
     public boolean consumeDetailsRequest() { boolean out = pendingDetails; pendingDetails = false; return out; }
     public boolean isViewing(UUID other) { return peer != null && peer.equals(other); }
     public boolean dismissViewer() { return viewer.dismiss(); }
@@ -106,11 +124,7 @@ public final class ChatConversation {
         String error = channel.consumeError();
         if (error != null && Minecraft.getInstance().player != null)
             com.november.mcphone.platform.PlayerAccess.message(Minecraft.getInstance().player, Component.translatable(error), true);
-        var receipt = channel.receipt();
-        if (receipt != null) actions.result(receipt.request(), receipt.result());
-        pollSubmission();
-        actions.tick(System.currentTimeMillis());
-        actions.reconcile(channel.messages());
+        tick();
         maybeRefresh();
         maybeMarkRead();
         int x = phoneLeft + PAD, w = screenW - PAD * 2;
@@ -157,7 +171,7 @@ public final class ChatConversation {
             return true;
         }
         if (button == 0 && backHovered) { pendingBack = true; return true; }
-        if (button == 0 && moreHovered && isGroup()) { pendingDetails = true; return true; }
+        if (button == 0 && moreHovered) { pendingDetails = true; return true; }
         if (composer.mouseClicked(button)) { messages.clearSelection(); return true; }
         UUID image = button == 0 ? messages.imageAt(mx, my) : null;
         if (image != null) {
@@ -224,10 +238,20 @@ public final class ChatConversation {
         reply.select(com.november.mcphone.feature.chat.ChatQuote.from(original,messageSenderName(original)));
         messages.clearSelection(); composer.dismissAttachmentMenu(); composer.focus(); cancelReply=null;
     }
-    private void pollSubmission() {
+    /** 资料页期间继续处理确认和超时；不拉历史、不标记隐藏消息已读。 */
+    public void tick() { if (channel != null) tick(selfId()); }
+    void tick(UUID self) {
+        if (channel == null) return;
+        var receipt = channel.receipt();
+        if (receipt != null) actions.result(receipt.request(), receipt.result());
+        pollSubmission(self);
+        actions.tick(System.currentTimeMillis());
+        actions.reconcile(channel.messages());
+    }
+    private void pollSubmission(UUID self) {
         if (submission == null) return;
         var status = channel.replyStatus(submission.ticket());
-        var result=submission.poll(channel.messages(),selfId(),submissionTime());
+        var result=submission.poll(channel.messages(),self,submissionTime());
         if (status == ChatConversationChannel.ReplyStatus.ACCEPTED || result == ChatReplySubmission.Result.ACCEPTED) {
             if (submission.complete(reply,composer::clearSubmitted)) cancelReply=null;
             cancelSubmission();
@@ -259,10 +283,10 @@ public final class ChatConversation {
         ChatUi.sizedIcon(g, ChatUi.Icon.BACK, x + (12 - backSize) / 2f,
                 y + (ChatLayout.HEADER_HEIGHT - backSize) / 2f, backSize,
                 backHovered ? ChatUi.accent() : FontPalette.body());
-        moreHovered = isGroup() && GuiUtil.hit(mx, my, x + w - 12, y, 12, ChatLayout.HEADER_HEIGHT);
+        moreHovered = GuiUtil.hit(mx, my, x + w - 12, y, 12, ChatLayout.HEADER_HEIGHT);
         ChatUi.sizedIcon(g, ChatUi.Icon.MORE, x + w - 12 + (12 - ChatLayout.ICON_SIZE) / 2f,
                 y + (ChatLayout.HEADER_HEIGHT - ChatLayout.ICON_SIZE) / 2f, ChatLayout.ICON_SIZE,
-                moreHovered ? ChatUi.accent() : isGroup() ? FontPalette.body() : FontPalette.dim());
+                moreHovered ? ChatUi.accent() : FontPalette.body());
         String suffix = channel.titleSuffix();
         String name = ChatUi.truncate(font, channel.title(), w - 30 - ChatUi.width(font, suffix, ChatLayout.TEXT_SCALE), ChatLayout.TEXT_SCALE) + suffix;
         ChatUi.buttonText(g, font, name, x + w / 2f,

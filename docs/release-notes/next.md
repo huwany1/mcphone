@@ -4,6 +4,7 @@
 
 ### 新增
 
+- 美西螈私聊右上角的三个点可直接查看对方的个人资料；返回原聊天时保留未发送文字、引用及滚动位置，查看资料期间仍处理发送确认。群聊继续打开群详情。
 - 美西螈私聊和群聊支持收藏已加载的图片，收藏列表可预览图片，详情支持动图播放、保存到相册及取消收藏；收藏后可独立查看，不依赖原消息和服务器图片保留时间。
 - 收藏采用统一索引及 text、image 分类目录，预留 audio、file；旧文字收藏自动迁移，原 JSON 保留为备份，本机仍按账号和存档／服务器隔离。
 
@@ -37,6 +38,7 @@
 
 ### Added
 
+- The top-right menu in Axolotl private chats opens the other player's profile. Returning preserves the unsent draft, reply preview and scroll position, while send confirmations continue to be processed. Group chats still open group details.
 - Axolotl private and group chats can favorite loaded images. Favorites show image previews and support animated playback, gallery export and removal. Saved images remain available independently of the original message and server image retention.
 - Favorites use one index with separate text and image directories, reserving audio and file directories. Existing text favorites migrate automatically while the original JSON remains as a backup. Storage remains local and scoped per account and world/server.
 
