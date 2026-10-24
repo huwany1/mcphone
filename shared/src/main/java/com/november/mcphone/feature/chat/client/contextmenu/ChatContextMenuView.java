@@ -13,6 +13,11 @@ public final class ChatContextMenuView {
     public record Entry(String labelKey, Icon icon, boolean enabled) {}
     @FunctionalInterface public interface PanelPainter { void paint(GuiGraphics g, int x, int y, int width, int height); }
     private static final float SCALE = .75f;
+    // 悬停行使用固定浅底，文字和图标一起切为深色，避免随主题变成浅底白字。
+    private static final int HOVER_FILL = 0xFFF4F4FA;
+    private static final int HOVER_BORDER = 0xFF706A7B;
+    private static final int HOVER_TEXT = 0xFF242330;
+    private static final int HOVER_DANGER = 0xFFA32B2B;
     private boolean open;
     private double anchorX, anchorY;
     private ChatContextMenuLayout.Layout layout;
@@ -40,11 +45,17 @@ public final class ChatContextMenuView {
         var bounds = layout.bounds();
         painter.paint(g, bounds.x(), bounds.y(), bounds.width(), bounds.height());
         float inkHeight = Math.max(1, font.lineHeight - 2) * SCALE;
+        int hoveredIndex = hitIndex(mx, my);
         for (int i = 0; i < entries.size(); i++) {
             var entry = entries.get(i);
             int rowY = bounds.y() + ChatContextMenuLayout.PAD + i * layout.rowHeight();
-            if (hitIndex(mx,my) == i) g.fill(bounds.x()+2,rowY,bounds.x()+bounds.width()-2,rowY+layout.rowHeight(),0x337C3559);
+            boolean hovered = hoveredIndex == i;
+            if (hovered) {
+                g.fill(bounds.x()+2,rowY,bounds.x()+bounds.width()-2,rowY+layout.rowHeight(),HOVER_FILL);
+                g.renderOutline(bounds.x()+2,rowY,bounds.width()-4,layout.rowHeight(),HOVER_BORDER);
+            }
             int color = !entry.enabled() ? FontPalette.subtle()
+                    : hovered ? entry.icon() == Icon.DELETE ? HOVER_DANGER : HOVER_TEXT
                     : entry.icon() == Icon.DELETE ? FontPalette.danger() : FontPalette.body();
             float centerY = rowY + layout.rowHeight() / 2f;
             if (entry.icon() != null) ChatContextMenuIcon.draw(g,entry.icon(),layout.iconX(),centerY,color);

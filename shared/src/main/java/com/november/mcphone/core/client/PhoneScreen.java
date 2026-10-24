@@ -1500,12 +1500,14 @@ public final class PhoneScreen extends PhoneScreenBase {
 
                 ChatAttachment attach = chatConversation.consumeAttachRequest();
                 if (attach != null) {
-                    // 先记下是谁：进挑东西那一页会 close 掉会话，对端就没了
-                    pendingConversationPeer = chatConversation.peer();
-                    navigateTo(switch (attach) {
-                        case IMAGE -> Mode.CHAT_PHOTO_PICKER;
-                        case STICKER -> Mode.CHAT_STICKER_PICKER;
-                    });
+                    switch (attach) {
+                        case LOCATION -> chatConversation.sendLocation();
+                        case IMAGE, STICKER -> {
+                            // 先记下是谁：进挑东西那一页会 close 掉会话，对端就没了
+                            pendingConversationPeer = chatConversation.peer();
+                            navigateTo(attach == ChatAttachment.IMAGE ? Mode.CHAT_PHOTO_PICKER : Mode.CHAT_STICKER_PICKER);
+                        }
+                    }
                 }
                 yield true;
             }

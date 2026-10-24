@@ -25,7 +25,7 @@ final class ChatComposer {
     private static final int MENU_PAD = 3;
     private static final int MENU_ROW_EXTRA = 3;
     private static final String[] RESERVED_ATTACH_KEYS = {
-            "mcphone.chat.layout.voice", "mcphone.chat.layout.file", "mcphone.chat.layout.location"};
+            "mcphone.chat.layout.voice", "mcphone.chat.layout.file"};
     private static int colorSend() { return ChatUi.accent(); }
     private static int colorSendHover() { return FontPalette.current().darkText() ? 0xFF863A66 : 0xFFFFD5E9; }
     private static int colorSendOff() { return FontPalette.muted(); }
@@ -149,19 +149,19 @@ final class ChatComposer {
         String send = Component.translatable("mcphone.chat.send").getString();
         boolean hasText = box != null && ChatLayout.hasText(box.getValue());
         var layout = ChatLayout.composer(w, ChatUi.width(font, send, ChatLayout.SEND_SCALE), hasText);
-        boolean canAttach = ServerConfig.allowChatImages();
+        boolean canSendImages = ServerConfig.allowChatImages() && !ChatImageSender.isFull();
         int barX = x + layout.inputX();
         int boxW = layout.inputWidth();
         float iconY = y + (INPUT_H - ATTACH_BTN) / 2f;
         // 语音仅留出固定槽位，现阶段没有录音或切换输入方式的动作。
         ChatUi.sizedIcon(g, ChatUi.Icon.VOICE, x, iconY, ATTACH_BTN, FontPalette.dim());
-        stickerHovered = canAttach && !ChatImageSender.isFull() && ChatLayout.hit(mouseX, mouseY,
+        stickerHovered = canSendImages && ChatLayout.hit(mouseX, mouseY,
                 x + layout.stickerX() - 1, y, ATTACH_BTN + 2, INPUT_H);
         ChatUi.sizedIcon(g, ChatUi.Icon.SMILE, x + layout.stickerX(), iconY, ATTACH_BTN,
-                stickerHovered ? colorSendHover() : (canAttach ? colorSend() : colorSendOff()));
+                stickerHovered ? colorSendHover() : (canSendImages ? colorSend() : colorSendOff()));
         attachBtnHovered = false;
         attachHovered = null;
-        if (hasText || !canAttach || ChatImageSender.isFull()) attachMenuOpen = false;
+        if (hasText) attachMenuOpen = false;
 
         ChatUi.inputBar(g, barX, y, boxW, INPUT_H);
 
@@ -209,19 +209,15 @@ final class ChatComposer {
                     ChatLayout.SEND_SCALE, 0xFFFFFFFF);
         } else {
             renderAttachButton(g, font, actionX + (layout.actionWidth() - ATTACH_BTN) / 2,
-                    y, mouseX, mouseY, canAttach);
+                    y, mouseX, mouseY, canSendImages);
         }
     }
 
     private void renderAttachButton(GuiGraphics g, Font font, int x, int barY,
-                                    int mouseX, int mouseY, boolean canAttach) {
+                                    int mouseX, int mouseY, boolean canSendImages) {
 
         int by = barY + (INPUT_H - ATTACH_BTN) / 2;
-        boolean sending = ChatImageSender.isBusy();
-        boolean blocked = !canAttach || ChatImageSender.isFull();
-        if (blocked) attachMenuOpen = false;
-
-        attachBtnHovered = !blocked && ChatLayout.hit(mouseX, mouseY,
+        attachBtnHovered = ChatLayout.hit(mouseX, mouseY,
                 x - 1, by - 1, ATTACH_BTN + 2, ATTACH_BTN + 2);
 
         if (attachBtnHovered || attachMenuOpen) {
@@ -230,14 +226,13 @@ final class ChatComposer {
         }
 
         ChatUi.sizedIcon(g, ChatUi.Icon.PLUS, x, barY + (INPUT_H - ATTACH_BTN) / 2f, ATTACH_BTN,
-                sending || blocked ? colorSendOff()
-                        : (attachBtnHovered || attachMenuOpen ? colorSendHover() : colorSend()));
+                attachBtnHovered || attachMenuOpen ? colorSendHover() : colorSend());
 
-        if (attachMenuOpen) renderAttachMenu(g, font, x, by, mouseX, mouseY);
+        if (attachMenuOpen) renderAttachMenu(g, font, x, by, mouseX, mouseY, canSendImages);
     }
 
     private void renderAttachMenu(GuiGraphics g, Font font, int btnX, int btnY,
-                                  int mouseX, int mouseY) {
+                                  int mouseX, int mouseY, boolean canSendImages) {
 
         ChatAttachment[] items = ChatAttachment.values();
         float scale = ChatLayout.TEXT_SCALE;
@@ -260,7 +255,8 @@ final class ChatComposer {
         attachHovered = null;
         int rowY = menuY + MENU_PAD;
         for (ChatAttachment item : items) {
-            boolean hovered = GuiUtil.hit(mouseX, mouseY, menuX, rowY, width, rowH - 1);
+            boolean enabled = item == ChatAttachment.LOCATION || canSendImages;
+            boolean hovered = enabled && GuiUtil.hit(mouseX, mouseY, menuX, rowY, width, rowH - 1);
             if (hovered) {
                 attachHovered = item;
                 g.fill(menuX + 1, rowY, menuX + width - 1, rowY + rowH - 1,
@@ -268,7 +264,7 @@ final class ChatComposer {
             }
             ChatUi.text(g, font, ChatUi.truncate(font, item.label(), width - MENU_PAD * 2, scale), menuX + MENU_PAD,
                     rowY + (rowH - ChatUi.lineHeight(font, scale)) / 2, scale,
-                    hovered ? FontPalette.title() : FontPalette.body());
+                    !enabled ? FontPalette.dim() : hovered ? FontPalette.title() : FontPalette.body());
             rowY += rowH;
         }
         // 灰色项只是为后续布局占位，不加入 ChatAttachment 枚举，也不发送请求。

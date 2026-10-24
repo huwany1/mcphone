@@ -6,6 +6,7 @@ import com.november.mcphone.core.client.PhoneTheme;
 import com.november.mcphone.feature.chat.ChatMessage;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -227,6 +228,17 @@ public final class ChatConversation {
             } else submission.retry(now);
             channel.send(text,reply.id(),java.util.Optional.of(submission.ticket()));
         }
+        messages.latest();
+    }
+
+    /** 位置是独立的普通文字消息，不提交或清理输入框里尚未发送的引用草稿。 */
+    public void sendLocation() {
+        var player = Minecraft.getInstance().player;
+        if (player != null) sendLocation(player.blockPosition());
+    }
+    void sendLocation(BlockPos position) {
+        if (channel == null || profileSuspended) return;
+        channel.send("X: " + position.getX() + ", Y: " + position.getY() + ", Z: " + position.getZ());
         messages.latest();
     }
 
